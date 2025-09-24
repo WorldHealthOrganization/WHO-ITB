@@ -1,5 +1,5 @@
-# WHO-ITB with FLINT HCERT Validation
-This is a shareable, pre-configured instance of the Interoperability Test Bed for WHO purposes, enhanced with FLINT-based HCERT (Health Certificate) validation test cases.
+# WHO-ITB with HCERT Validation
+This is a shareable, pre-configured instance of the Interoperability Test Bed for WHO purposes, enhanced with HCERT (Health Certificate) validation test cases.
 
 ## Table of Contents
 - [Repository contents](#repo-contents)
@@ -16,13 +16,11 @@ This is a shareable, pre-configured instance of the Interoperability Test Bed fo
 As a quick overview, this repository contains:
 + A running, empty Interoperability Test Bed instance (GITB) with all required containers (base ITB composition);
 + All helper services with full sourcecode and as containers for the composition;
-+ **NEW**: GDHCN validator service for HCERT processing and validation;
-+ **NEW**: Complete FLINT-based test suite for HCERT validation covering all UtilizeHCERT.feature scenarios;
++ GDHCN validator service for HCERT processing and validation;
 + An initial configuration of the domains with communities, organizations, users and admins, etc., including:
     + Multiple testing domains and conformance statements from WHO in these domains;
     + Testsuites and test-cases for these domains (example: HAJJ Program);
-    + **NEW**: HCERT validation test suite with 8 comprehensive test cases.
-
+    
 ## Prerequisites
 ### Prerequisites for running
 - Git
@@ -31,8 +29,6 @@ As a quick overview, this repository contains:
 - Internet connection (for GDHCN validator image)
 
 ### Prerequisites for development and testing
-- JDK 17+ (for modifying helper services)
-- Maven 3.8+ (for building helper services)
 - Basic knowledge of ITB test case development
 
 ## Installation
@@ -44,12 +40,13 @@ As a quick overview, this repository contains:
 
 2. Start the composition with Docker on your local machine (will build the helper service and pull GDHCN validator):
    ```bash 
-   docker-compose up
+   docker-compose up --build
    ```
    This will start:
    - ITB Test Bed UI at http://localhost:10003
-   - WHO Helper Services at http://localhost:10005
+   - Helper Services at http://localhost:10005
    - GDHCN Validator at http://localhost:8080
+   - MatchBox at  http://localhost:8089
 
 3. Go to http://localhost:10003 in your browser.
 
@@ -62,7 +59,7 @@ As a quick overview, this repository contains:
 
 ## HCERT Test Cases
 
-This repository includes a comprehensive test suite for HCERT (Health Certificate) validation based on the FLINT UtilizeHCERT.feature specifications. The test suite covers:
+This repository includes a comprehensive test suite for HCERT (Health Certificate) validation. The test suite covers:
 
 ### Test Case Coverage
 1. **Valid HCERT QR Code Validation** (`tc-qr-valid-hcert`)
@@ -392,9 +389,6 @@ https://interoperable-europe.ec.europa.eu/collection/interoperability-test-bed-r
 
 ## WHO SMART Trust Documentation
 https://smart.who.int/trust
-
-## FLINT Documentation
-https://github.com/WorldHealthOrganization/flint
 
 ## GDHCN Specifications
 https://smart.who.int/trust/concepts.html
