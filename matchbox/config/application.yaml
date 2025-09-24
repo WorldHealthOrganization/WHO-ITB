@@ -1,0 +1,42 @@
+server:
+  servlet:
+    context-path: /matchboxv3
+spring:
+  datasource:
+    url: 'jdbc:postgresql://matchbox-db:5432/matchbox'
+    username: matchbox
+    password: matchbox
+    driverClassName: org.postgresql.Driver
+
+    # database connection pool size
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    properties:
+      hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
+hapi:
+  fhir:
+    openapi_enabled: true
+    fhir_version: R4
+    install_transitive_ig_dependencies: true    
+    ig_runtime_upload_enabled: true    
+    implementationguides:
+      terminology:
+        name: hl7.terminology
+        version: 3.1.0
+      trust:
+        packageUrl: https://build.fhir.org/ig/WorldHealthOrganization/smart-trust-phw/package.tgz
+#        name: smart.who.int.trust-phw
+        version: 0.1.0
+        reloadExisting: true
+        installMode: STORE_AND_INSTALL
+      icvp:
+        packageUrl: https://https://WorldHealthOrganization.github.io/smart-icvp/package.tgz
+#        name: smart.who.int.icvp
+        version: 0.2.0
+        reloadExisting: true
+        installMode: STORE_AND_INSTALL
+matchbox:
+  fhir:
+    context:
+      onlyOneEngine: true

@@ -1,0 +1,47 @@
+volumes:
+  gitb-repo:
+  gitb-dbdata:
+services:
+  gitb-redis:
+    image: redis:7.2.5
+    restart: unless-stopped
+  gitb-mysql:
+    image: isaitb/gitb-mysql:latest
+    restart: unless-stopped
+    volumes:
+      - gitb-dbdata:/var/lib/mysql
+    healthcheck:
+      test: "/usr/bin/mysql --user=root --password=$$MYSQL_ROOT_PASSWORD --execute \"SHOW DATABASES;\""
+      interval: 3s
+      retries: 10
+  gitb-srv:
+    image: isaitb/gitb-srv:nightly
+    restart: unless-stopped
+  gitb-ui:
+    image: isaitb/gitb-ui:nightly
+    restart: unless-stopped
+    ports:
+      - "10003:9000"
+    volumes:
+      - gitb-repo:/gitb-repository
+      - ./initconfig/data/:/gitb-repository/data/in/:rw
+    environment:
+      # This is the key to decrypt the initialisation data archive (see above).
+      - DATA_ARCHIVE_KEY=WHO_ITB1
+      # Flag to enable the Test Bed's REST API. This can be very useful for efficient test case development.
+      - AUTOMATION_API_ENABLED=true
+      # Activate the generic GITB theme.
+      - THEME=who
+    depends_on:
+      gitb-redis:
+        condition: service_started
+      gitb-mysql:
+        condition: service_healthy
+      gitb-srv:
+        condition: service_started
+  # who-helper-services:
+  #   build:
+  #     context: ./who-helper
+  #   restart: unless-stopped
+  #   ports:
+  #     - "10005:8181"

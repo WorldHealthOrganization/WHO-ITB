@@ -1,0 +1,477 @@
+@bridge = http://localhost:8000
+@fhir = http://localhost:8080/fhir
+
+@matchbox = http://localhost:8087/matchboxv3/fhir
+
+
+@ig_url = https://example.org/your-ig
+
+### 1) Health check
+GET {{bridge}}/health
+Accept: application/json
+
+###
+GET http://localhost:8000/docs
+
+
+### Simplified IG upload
+POST http://localhost:8000/upload_ig 
+Content-Type: application/json
+
+{"ig_url":"https://build.fhir.org/ig/costateixeira/smart-trust-phw/" , "host": "matchbox"}
+
+
+
+### Simplified IG upload
+POST http://localhost:8000/upload_ig
+Content-Type: application/json
+
+{ "ig_url": "https://build.fhir.org/ig/WorldHealthOrganization/smart-icvp" , "host": "matchbox"}
+
+
+###
+# @name transform
+POST http://localhost:8000/transform?source=http://smart.who.int/icvp/StructureMap/ICVPClaimtoIPS
+Content-Type: application/json
+Accept: application/fhir+json
+
+{
+  "dob" : "1994-10-13",
+  "gn" : "Parent/Antonio Rojas",
+  "n" : "Cristina Rodriguez",
+  "ndt" : "NI",
+  "nid" : "126008-7",
+  "ntl" : "CHL",
+  "s" : "male",
+  "v" : {
+    "bo" : "A1234",
+    "cn" : "Juan Castro",
+    "dt" : "2020-11-15",
+    "is" : "MINSALUD",
+    "vle" : "2025-11-15",
+    "vls" : "2020-11-15",
+    "vp" : "YellowFeverProductd2c75a15ed309658b3968519ddb31690"
+  }
+}
+
+
+
+### Validate the transform result (uses previous response)
+POST {{fhir}}/Bundle/$validate?profile=http://hl7.org/fhir/uv/ips/StructureDefinition/Bundle-uv-ips
+Content-Type: application/fhir+json
+
+{{transform.response.body.result}}
+
+###
+
+POST http://localhost:8000/validate
+Content-Type: application/json
+
+{
+  "resource": {{transform.response.body.result}},
+  "profile_url": "http://hl7.org/fhir/uv/ips/StructureDefinition/Bundle-uv-ips",
+  "host": "http://fhir-server:8080/fhir" 
+}
+
+
+###
+GET http://localhost:8000/targets
+
+
+####
+
+POST http://lacpass.create.cl:8182/v2/ips-json/ba07611d-b9c8-4104-a086-554d8b6cc014
+
+
+####
+### 1) Request the manifest (if you have the manifest URL)
+POST http://lacpass.create.cl:8182/v2/manifests/ba07611d-b9c8-4104-a086-554d8b6cc014
+content-type: application/json
+
+{
+  "recipient": "GDHCN Validator",
+  // include passcode ONLY if the SHL had the P flag
+  "passcode": "1234",
+  "embeddedLengthMax": 0
+}
+
+### 2) Download the encrypted file from the manifest's files[].location
+# (your server seems to support a non-standard plaintext variant too — see notes below)
+GET http://lacpass.create.cl:8182/v2/ips-json/ba07611d-b9c8-4104-a086-554d8b6cc014
+accept: application/jose
+
+### 2b) (Vendor extension) If your server accepts the key as a query param and returns plaintext FHIR:
+GET http://lacpass.create.cl:8182/v2/ips-json/ba07611d-b9c8-4104-a086-554d8b6cc014?key=7bfdafe2-3c8e-47d9-a9ff-1a0daf429243
+accept: application/fhir+json, application/json
+
+
+###
+@host = http://lacpass.create.cl:8182
+@resource = v2/ips-json/ba07611d-b9c8-4104-a086-554d8b6cc014
+@key = 7048d6c7-9ad6-4cb4-afcb-5a3fd4b1a3b5
+
+### Fetch the FHIR Bundle (plaintext path your server exposes)
+GET {{host}}/{{resource}}?key={{key}}
+Accept: application/fhir+json, application/json
+
+
+
+
+########
+
+@host = http://lacpass.create.cl:8182
+@manifestId = ba07611d-b9c8-4104-a086-554d8b6cc014
+@recipient = GDHCN Validator
+
+### 1) Get a fresh manifest (links can be short-lived)
+# @name getManifest
+POST {{host}}/v2/manifests/{{manifestId}}
+content-type: application/json
+accept: application/json
+
+{
+  "recipient": "{{recipient}}"
+  // include "passcode": "1234" ONLY if the SHL had P/Pin flag
+}
+
+### 2) Use the exact files[0].location from the manifest
+# Humao can read response variables directly:
+# {{getManifest.response.body.files[0].location}}
+GET {{getManifest.response.body.files[0].location}}
+accept: application/fhir+json, application/json
+
+
+###
+
+@host = http://lacpass.create.cl:8182
+@manifestId = ba07611d-b9c8-4104-a086-554d8b6cc014
+@recipient = GDHCN Validator
+@pin = 1234
+
+###
+# A) Spec-typical: JSON body with recipient (and passcode only if SHL had P flag)
+# @name manifest_json
+POST {{host}}/v2/manifests/{{manifestId}}
+content-type: application/json
+accept: application/json
+
+{
+  "recipient": "{{recipient}}",
+  "passcode": "{{pin}}"
+}
+
+
+###
+
+
+### 2) Fetch the FHIR bundle from the manifest’s location
+# Humao pulls the URL from the previous response automatically:
+GET http://lacpass.create.cl:8182/v2/ips-json/ba07611d-b9c8-4104-a086-554d8b6cc014?key=f700c341-8ec5-4626-bb88-058582d0919c
+accept: application/fhir+json, application/json
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+###########
+
+
+@host = http://lacpass.create.cl:8182
+@manifestId = ba07611d-b9c8-4104-a086-554d8b6cc014
+@recipient = GDHCN Validator
+
+### 1) Get a fresh manifest (links can be short-lived / one-time)
+# @name manifest
+POST {{host}}/v2/manifests/{{manifestId}}
+content-type: application/json
+accept: application/json
+
+{
+  "recipient": "{{recipient}}",
+  "passcode": "{{pin}}"
+}
+
+
+
+### 2A) GET using FHIR Accept (plaintext servers)
+GET {{manifest.response.body.files[0].location}}
+accept: application/fhir+json, application/json
+
+### 2B) GET as JWE (spec-compliant servers return application/jose)
+GET {{manifest.response.body.files[0].location}}
+accept: application/jose
+
+### 2C) GET with no Accept header (let server pick)
+GET {{manifest.response.body.files[0].location}}
+
+### 2D) (Rare) Echo recipient as query again (some deployments require it)
+GET {{manifest.response.body.files[0].location}}&recipient={{recipient}}
+accept: */*
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+####
+
+
+
+@host = http://lacpass.create.cl:8182
+@manifestId = ba07611d-b9c8-4104-a086-554d8b6cc014
+@recipient = GDHCN Validator
+
+### 0) Get a fresh manifest (DO THIS FIRST each time)
+# @name manifest
+POST {{host}}/v2/manifests/{{manifestId}}
+content-type: application/json
+accept: application/json
+
+{
+  "recipient": "{{recipient}}",
+  "passcode": "1234"
+}
+
+###
+# Convenience: capture the file URL Humao-style
+@fileUrl = {{manifest.response.body.files[0].location}}
+
+### 1A) GET file (FHIR accept)
+GET {{fileUrl}}
+accept: application/fhir+json, application/json
+cache-control: no-cache
+pragma: no-cache
+
+### 1B) GET file (JWE accept)
+GET {{fileUrl}}
+accept: application/jose
+cache-control: no-cache
+pragma: no-cache
+
+### 1C) GET file (no Accept, follow redirects)
+# Humao follows redirects by default; add this just in case
+GET {{fileUrl}}
+cache-control: no-cache
+pragma: no-cache
+
+### 1D) GET file + echo recipient (some servers require it)
+GET {{fileUrl}}&recipient={{recipient}}
+accept: */*
+cache-control: no-cache
+pragma: no-cache
+
+### 2) HEAD (see if server dies on body only)
+HEAD {{fileUrl}}
+accept: */*
+
+### 3A) POST (empty body) — some deployments expect POST to the file endpoint
+POST {{fileUrl}}
+accept: application/fhir+json, application/json
+content-length: 0
+
+### 3B) POST JSON body with key (rare, but seen)
+POST {{fileUrl}}
+content-type: application/json
+accept: application/fhir+json, application/json
+
+{
+  "recipient": "{{recipient}}"
+}
+
+### 3C) POST form (rare)
+POST {{fileUrl}}
+content-type: application/x-www-form-urlencoded
+accept: */*
+
+recipient={{recipient}}
+
+### 4) Force “plain” client-y headers (some servers dislike missing UA)
+GET {{fileUrl}}
+user-agent: curl/8.5.0
+accept: application/fhir+json, application/json
+connection: close
+
+### 5) Show me the response headers (sometimes the clue is here)
+# (Humao shows headers in the response pane; this is just another GET)
+GET {{fileUrl}}
+accept: */*
+
+
+########################################
+
+
+
+@host = http://lacpass.create.cl:8182
+@manifestId = ba07611d-b9c8-4104-a086-554d8b6cc014
+@recipient = GDHCN Validator
+@pin = 1234
+
+### 1) SPEC-TYPICAL: POST manifest with recipient + passcode
+# @name manifest_json
+POST {{host}}/v2/manifests/{{manifestId}}
+content-type: application/json
+accept: application/json
+
+{
+  "recipient": "{{recipient}}",
+  "passcode": "{{pin}}"
+}
+
+### 2A) Fetch file as plaintext FHIR (your server's shortcut)
+# Uses the URL returned by #1 EXACTLY
+GET http://lacpass.create.cl:8182/v2/ips-json/ba07611d-b9c8-4104-a086-554d8b6cc014?key=737c95b5-ae59-411a-9c7b-14ddd98b95f8
+accept: application/fhir+json;fhirVersion=4.0.1
+
+
+
+### 2B) (Server quirk) Echo passcode on the file GET as query too
+GET {{manifest_json.response.body.files[0].location}}&passcode={{pin}}
+accept: application/fhir+json, application/json
+
+### 2C) (Spec-style) If server returns JWE, ask for jose
+GET {{manifest_json.response.body.files[0].location}}
+accept: application/jose
+
+### 2D) (Spec-style + quirk) jose + passcode in query
+GET {{manifest_json.response.body.files[0].location}}&passcode={{pin}}
+accept: application/jose
+
+### 3) (Rare) Server expects GET + recipient echo
+GET {{manifest_json.response.body.files[0].location}}&recipient={{recipient}}
+accept: */*
+
+
+
+### 2A) SPEC path: fetch the encrypted file (JWE)
+# Expect: Content-Type: application/jose, body is a compact JWE string
+GET http://lacpass.create.cl:8182/v2/ips-json/ba07611d-b9c8-4104-a086-554d8b6cc014?key=215257ce-24be-40a0-9714-77e70db4e99c
+accept: application/jose
+
+
+######
+### 2A) Spec-compliant: ask for JWE
+GET http://lacpass.create.cl:8182/v2/ips-json/ba07611d-b9c8-4104-a086-554d8b6cc014?key=215257ce-24be-40a0-9714-77e70db4e99c
+accept: application/jose
+
+### 2B) Vendor shortcut (plaintext FHIR)
+GET http://lacpass.create.cl:8182/v2/ips-json/ba07611d-b9c8-4104-a086-554d8b6cc014?key=215257ce-24be-40a0-9714-77e70db4e99c
+accept: application/fhir+json, application/json
+
+### 2C) Quirk: repeat passcode in query (PIN = 1234)
+GET http://lacpass.create.cl:8182/v2/ips-json/ba07611d-b9c8-4104-a086-554d8b6cc014?key=215257ce-24be-40a0-9714-77e70db4e99c&passcode=1234
+accept: application/fhir+json, application/json
+
+### 2D) Quirk: recipient + passcode in query
+GET http://lacpass.create.cl:8182/v2/ips-json/ba07611d-b9c8-4104-a086-554d8b6cc014?key=215257ce-24be-40a0-9714-77e70db4e99c&recipient=GDHCN%20Validator&passcode=1234
+accept: application/fhir+json, application/json
+
+### 2E) Quirk: POST to the file URL with JSON body
+POST http://lacpass.create.cl:8182/v2/ips-json/ba07611d-b9c8-4104-a086-554d8b6cc014?key=215257ce-24be-40a0-9714-77e70db4e99c
+content-type: application/json
+accept: application/fhir+json, application/json
+
+{
+  "recipient": "GDHCN Validator",
+  "passcode": "1234"
+}
+
+
+
+###
+### 2F) No Accept at all (let server choose)
+GET http://lacpass.create.cl:8182/v2/ips-json/ba07611d-b9c8-4104-a086-554d8b6cc014?key=215257ce-24be-40a0-9714-77e70db4e99c
+cache-control: no-cache
+pragma: no-cache
+user-agent: curl/8.5.0
+
+### 2G) Wildcard Accept
+GET http://lacpass.create.cl:8182/v2/ips-json/ba07611d-b9c8-4104-a086-554d8b6cc014?key=215257ce-24be-40a0-9714-77e70db4e99c
+accept: */*
+cache-control: no-cache
+pragma: no-cache
+user-agent: curl/8.5.0
+
+### 2H) FHIR with explicit version token
+GET http://lacpass.create.cl:8182/v2/ips-json/ba07611d-b9c8-4104-a086-554d8b6cc014?key=215257ce-24be-40a0-9714-77e70db4e99c
+accept: application/fhir+json; fhirVersion=4.0.1
+cache-control: no-cache
+pragma: no-cache
+user-agent: curl/8.5.0
+
+### 2I) Plain JSON only
+GET http://lacpass.create.cl:8182/v2/ips-json/ba07611d-b9c8-4104-a086-554d8b6cc014?key=215257ce-24be-40a0-9714-77e70db4e99c
+accept: application/json
+cache-control: no-cache
+pragma: no-cache
+user-agent: curl/8.5.0
+
+### 2J) Octet-stream (some servers stream bytes then JSON)
+GET http://lacpass.create.cl:8182/v2/ips-json/ba07611d-b9c8-4104-a086-554d8b6cc014?key=215257ce-24be-40a0-9714-77e70db4e99c
+accept: application/octet-stream
+cache-control: no-cache
+pragma: no-cache
+user-agent: curl/8.5.0
+
+### 2K) OPTIONS (discover allowed methods / CORS hints)
+OPTIONS http://lacpass.create.cl:8182/v2/ips-json/ba07611d-b9c8-4104-a086-554d8b6cc014?key=215257ce-24be-40a0-9714-77e70db4e99c
+
+
+###
+### 2L) HEAD (sometimes 200 on HEAD but 500 on GET reveals a filter issue)
+HEAD http://lacpass.create.cl:8182/v2/ips-json/ba07611d-b9c8-4104-a086-554d8b6cc014?key=215257ce-24be-40a0-9714-77e70db4e99c
+accept: */*
+
+### 2M) Trailing slash (occasionally fixes strict matchers)
+GET http://lacpass.create.cl:8182/v2/ips-json/ba07611d-b9c8-4104-a086-554d8b6cc014/?key=215257ce-24be-40a0-9714-77e70db4e99c
+accept: */*

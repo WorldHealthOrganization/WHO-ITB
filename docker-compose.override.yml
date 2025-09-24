@@ -1,0 +1,118 @@
+version: '3.9'
+
+services:
+  # GDHCN Validator Service for HCERT testing
+  hcert-validator:
+    build: gdhcn-helper
+    container_name: hcert-validator
+#    image: costateixeira/gdhcn-validator:0.2.0
+    restart: unless-stopped
+    ports:
+      - "8089:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    # networks: [backend]
+
+  # Plain FHIR server (HAPI)
+  fhir-server:
+    image: hapiproject/hapi:latest
+    restart: unless-stopped
+    environment:
+      - fhir_version=R4
+      - server_port=8080
+      - static_server_port=8080
+      - server_name=ValidationServer
+      - hapi.fhir.cr.enabled=true
+      - hapi.fhir.allow_multiple_delete=true
+      - hapi.fhir.server_address=localhost:8080
+      - hapi.fhir.reuse_cached_search_results_millis=-1
+      - hapi.fhir.cors.allow_Credentials=true
+      - hapi.fhir.cors.allowed_origin_patterns="http:localhost:*"
+      - hapi.fhir.implementationguides.fhir_r4_core.name=hl7.fhir.r4.core
+      - hapi.fhir.implementationguides.fhir_r4_core.version=4.0.1
+      - hapi.fhir.implementationguides.fhir_r4_core.url=http://hl7.org/fhir/R4/hl7.fhir.r4.core.tgz
+      - hapi.fhir.ig_runtime_upload_enabled=true
+      - hapi.fhir.custom_content_path=/custom
+      - hapi.fhir.app_content_path=/apps
+    volumes:
+      - ./config/fhir/custom:/custom
+      - ./config/fhir/apps:/apps
+    ports:
+      - "8080:8080"   # host access (optional)      
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/fhir/metadata >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+    # networks: [backend]
+    # No host port mapping on purpose; internal name is http://fhir-server:8080/fhir
+
+  # Matchbox (+ Postgres)
+  matchbox:
+    image: europe-west6-docker.pkg.dev/ahdis-ch/ahdis/matchbox:v4.0.12
+    restart: unless-stopped
+    ports:
+      - "8087:8080"   # host access (optional)
+    links:
+      - matchbox-db
+    volumes:
+      - ./matchbox/config:/config
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/fhir/metadata >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+    # networks: [backend]
+
+  matchbox-db:
+    image: postgres:latest
+    container_name: matchbox-db
+    restart: always
+    # command: ["postgres", "-c", "log_statement=all"]
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: 'matchbox'
+      POSTGRES_USER: 'matchbox'
+      POSTGRES_PASSWORD: 'matchbox'
+      SPRING_CONFIG_LOCATION: 'file:///config/application.yml'
+    volumes:
+      - ./matchbox/data:/var/lib/postgresql/data
+    # networks: [backend]
+
+  # smart-helper (this app)
+  smart-helper:
+    build:
+      context: ./smart-helper
+      dockerfile: Dockerfile
+    container_name: smart-helper
+    environment:
+      - FHIR_HOST=http://fhir-server:8080/fhir     # <-- use the service name
+      - MATCHBOX_HOST=http://matchbox:8080/matchboxv3/fhir
+      - SMART_HELPER_LOG=DEBUG
+      - SMART_HELPER_LOG_BODY_LIMIT=8000      
+      # - FHIR_TOKEN=...                            # optional
+      - FHIR_TIMEOUT=90
+    ports:
+      - "8000:8000"
+    # depends_on:
+    #   matchbox:
+    #     condition: service_healthy
+    #   fhir-server:
+    #     condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    # networks: [backend]
+
+# networks:
+#   backend:
+#     driver: bridge

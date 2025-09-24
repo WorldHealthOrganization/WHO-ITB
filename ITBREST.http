@@ -1,0 +1,423 @@
+@host = http://localhost:10003/api/rest
+@masterKey = 538F2905X4264X4018X98B2X4FD31D83508D
+
+@GDHCNCommunity=2E86828DXEDB9X4C5CX8D5DX5BF0A406DAB9
+
+@PH4HDomain=E39B8B8FX1143X4C42XB930XC77DC06AC7A3
+
+@specificationKey=6DEAC9D3XB479X4A4CXADC5X68BA94006701
+
+### Create a domain
+# @name createDomain
+PUT {{host}}/domain
+ITB_API_KEY: {{masterKey}}
+content-type: application/json
+
+{
+  "shortName": "PH4H",
+  "fullName": "Pan-American Highway for Health",
+  "description": "Pan-American Highway for Health.."
+}
+
+###
+## @PH4HDomain = {{createDomain.response.body.apiKey}}
+
+
+
+### UPDATE DOMAIN
+POST {{host}}/domain/{{PH4HDomain}}
+ITB_API_KEY: {{masterKey}}
+content-type: application/json
+
+{
+  "shortName": "PH4H",
+  "fullName": "Pan-American Highway for Health",
+  "description": "Pan-American Highway for Health."
+}
+
+
+
+###
+
+
+### Create a specification
+# @name createSpecification
+PUT {{host}}/specification
+ITB_API_KEY: {{GDHCNCommunity}}
+content-type: application/json
+
+{
+  "shortName": "System validates and Utilizes HCERT",
+  "fullName": "System validates and Utilizes HCERT",
+  "description": "System validates and Utilizes HCERT",
+  "hidden": false,
+  "displayOrder": 0,
+  "domain": "{{PH4HDomain}}",
+  "apiKey": "6DEAC9D3XB479X4A4CXADC5X68BA94006701"
+}
+###
+@specificationKey = {{createSpecification.response.body.apiKey}}
+
+
+
+### Upload tests to specification
+
+### Deploy Test Suite - vhl
+POST {{host}}/testsuite/deploy
+ITB_API_KEY: {{GDHCNCommunity}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="updateSpecification"
+
+true
+--boundary
+Content-Disposition: form-data; name="specification"
+
+{{specificationKey}}
+--boundary
+Content-Disposition: form-data; name="testSuite"; filename="hcert-vhl.zip"
+Content-Type: application/zip
+
+< ./hcert-vhl.zip
+--boundary--
+
+
+
+### Deploy Test Suite - icvp
+POST {{host}}/testsuite/deploy
+ITB_API_KEY: {{GDHCNCommunity}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="updateSpecification"
+
+true
+--boundary
+Content-Disposition: form-data; name="specification"
+
+{{specificationKey}}
+--boundary
+Content-Disposition: form-data; name="testSuite"; filename="hcert-icvp.zip"
+Content-Type: application/zip
+
+< ./hcert-icvp.zip
+--boundary--
+
+
+
+
+
+### UPDATE a community - NO TO BE USED
+
+POST {{host}}/community
+ITB_API_KEY: {{masterKey}}
+content-type: application/json
+
+{
+  "shortName": "GDHCN",
+  "fullName": "GDHCN",
+  "description": "GDHCN",
+  "interactionNotifications": false,
+  "apiKey": "{{GDHCNCommunity}}"
+}
+
+
+
+
+
+
+### POST an organisation 
+PUT {{host}}/organisation
+ITB_API_KEY: {{GDHCNCommunity}}
+content-type: application/json
+
+{
+  "apiKey": "96601A26XB151X4A6FX8FEAX138E36A8E0BB",
+  "shortName": "CENS",
+  "fullName": "CENS"
+}
+
+
+
+
+### POST an organisation 
+PUT {{host}}/organisation
+ITB_API_KEY: {{GDHCNCommunity}}
+content-type: application/json
+
+{
+  "apiKey": "DC1CD529X8A64X40E7X9775XAD1B3B91B8DE",
+  "shortName": "CREATE",
+  "fullName": "CREATE"
+}
+
+
+### POST an organisation 
+PUT {{host}}/organisation
+ITB_API_KEY: {{GDHCNCommunity}}
+content-type: application/json
+
+{
+  "apiKey": "8C1C3168XBE77X4D74X8D28X614F85F6016E",
+  "shortName": "IDB",
+  "fullName": "IDB"
+}
+
+
+ 
+
+### POST a sytem to an organisation 
+PUT {{host}}/organisation
+ITB_API_KEY: {{GDHCNCommunity}}
+content-type: application/json
+
+{
+  "apiKey": "8C1C3168XBE77X4D74X8D28X614F85F6016E",
+  "shortName": "IDB",
+  "fullName": "IDB"
+}
+
+
+Systems:
+ 
+IDB Test setup
+10379C39XCEABX444BXB940X7A1AC07E1F17
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### POST an organisation 
+PUT {{host}}/organisation
+ITB_API_KEY: {{GDHCNCommunity}}
+content-type: application/json
+
+{
+  "shortName": "RACSEL",
+  "fullName": "RACSEL",
+  "apiKey": "F560B191XFD59X420BXAB25X50D9A1D080A6"
+}
+
+
+
+
+
+
+
+
+
+
+
+###
+GET {{host}}/organisation
+ITB_API_KEY: {{GDHCNCommunity}}
+
+
+### 
+PUT {{host}}/organisation
+ITB_API_KEY: {{GDHCNCommunity}}
+content-type: application/json
+
+{
+  "apiKey": "026BE8F9X1950X448AX93D2XE2993BF5E89C",
+  "shortName": "WHO2",
+  "fullName": "WHO2"
+}
+
+
+
+
+
+
+###
+
+
+
+
+
+
+
+
+
+
+### Get a list of actors (example, may not work if path is incorrect)
+GET {{host}}/configure/actor/client
+ITB_API_KEY: {{masterKey}}
+
+
+
+
+
+###
+@domainKey = {{createDomain.response.body.apiKey}}
+
+
+### Try to GET domain using captured key
+GET {{host}}/domain/{{domainKey}}
+ITB_API_KEY: {{masterKey}}
+
+
+### Get all domains (optional)
+GET http://localhost:9001/api/domains
+ITB_API_KEY: {{masterKey}}
+content-type: application/json
+
+### Create a community
+# @name createCommunity
+PUT {{host}}/community
+ITB_API_KEY: {{masterKey}}
+content-type: application/json
+
+{
+  "shortName": "My new community 3",
+  "fullName": "My new community 3 - updated",
+  "description": "My new Community for the conformance testing.",
+  "supportEmail": "support@eupo.eu",
+  "interactionNotifications": true,
+  "domain": "{{domainKey}}"
+}
+
+###
+@communityKey = {{createCommunity.response.body.apiKey}}
+
+### Create an organisation
+# @name createOrganisation
+
+PUT {{host}}/organisation
+ITB_API_KEY: {{communityKey}}
+content-type: application/json
+
+{
+  "shortName": "My new organisation 3",
+  "fullName": "My new organisation 3"
+}
+
+###
+@organisationKey = {{createOrganisation.response.body.apiKey}}
+###
+
+### Create a system
+# @name createSystem
+PUT {{host}}/system
+ITB_API_KEY: {{communityKey}}
+content-type: application/json
+
+{
+  "shortName": "My new system 3",
+  "fullName": "My new system 3",
+  "description": "Description of my system",
+  "organisation": "{{organisationKey}}"
+}
+
+###
+@systemKey = {{createSystem.response.body.apiKey}}
+
+### Create a specification
+# @name createSpecification
+PUT {{host}}/specification
+ITB_API_KEY: {{communityKey}}
+content-type: application/json
+
+{
+  "shortName": "My FHIR specification 3",
+  "fullName": "My FHIR specification 3",
+  "description": "Description of my specification",
+  "reportMetadata": "My specification reportMetadata",
+  "hidden": false,
+  "displayOrder": 0,
+  "domain": "{{domainKey}}"
+}
+###
+@specificationKey = {{createSpecification.response.body.apiKey}}
+
+### Create an actor
+# @name createActor
+PUT {{host}}/actor
+ITB_API_KEY: {{communityKey}}
+content-type: application/json
+
+{
+  "identifier": "order-receiver",
+  "name": "Order Receiver 3",
+  "description": "Actor responsible for receiving orders.",
+  "reportMetadata": "Order Receiver Actor",
+  "default": false,
+  "hidden": false,
+  "displayOrder": 0,
+  "specification": "{{specificationKey}}"
+}
+
+###
+@actorKey = {{createActor.response.body.apiKey}}
+
+### Deploy test suite via JSON
+PUT {{host}}/testsuite
+ITB_API_KEY: {{communityKey}}
+content-type: application/json
+
+{
+  "specification": "{{specificationKey}}",
+  "ignoreWarnings": false,
+  "replaceTestHistory": true,
+  "updateSpecification": true
+}
+
+### Upload test suite ZIP (use terminal curl command)
+# NOTE: REST Client does not support multipart uploads directly. Use curl in terminal.
+# Update API key and specification if needed
+
+# F8 : uploadTestSuite
+# Run this from terminal:
+# curl -F updateSpecification=true \
+#      -F specification={{specificationKey}} \
+#      -F testSuite=@test-suite.zip \
+#      --header "ITB_API_KEY: {{communityKey}}" \
+#      -X POST http://localhost:9001/api/rest/testsuite/deploy
+
+
+
+### Create conformance statement
+# @name createConformance
+
+PUT {{host}}/conformance/{{systemKey}}/{{actorKey}}
+ITB_API_KEY: {{organisationKey}}
+content-type: application/json
+
+###
+@conformanceKey = {{createConformance.response.body.apiKey}}
+
+
+
+### GET domains
+GET http://localhost:10003/api/rest/domains
+ITB_API_KEY: EC89D73EX157AX469EX8E47X00066BF6508B
+
+
+### GET domain details
+GET http://localhost:10003/api/rest/domain/96B86ED2XD112X4DE9XAE95X49B301C42EBC
+ITB_API_KEY: EC89D73EX157AX469EX8E47X00066BF6508B
+
+
+
+### GET spec in domain
+GET http://localhost:10003/api/rest/domain/AFA6BA52X0375X446EXB595XAAD0516F96F1/specifications
+ITB_API_KEY: EC89D73EX157AX469EX8E47X00066BF6508B

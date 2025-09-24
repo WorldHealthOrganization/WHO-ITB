@@ -1,0 +1,38 @@
+server:
+  servlet:
+    context-path: /matchboxv3
+spring:
+  datasource:
+    url: 'jdbc:postgresql://matchbox-db:5432/matchbox'
+    username: matchbox
+    password: matchbox
+    driverClassName: org.postgresql.Driver
+
+    # database connection pool size
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    properties:
+      hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
+hapi:
+  fhir:
+    openapi_enabled: true
+    fhir_version: R4
+    install_transitive_ig_dependencies: true    
+    ig_runtime_upload_enabled: true    
+    implementationguides:
+      terminology:
+        name: hl7.terminology
+        version: 3.1.0
+
+      ips:
+        packageUrl:  https://hl7.org/fhir/uv/ips/
+        name: hl7.fhir.uv.ips
+        version: 1.1.0
+        reloadExisting: true
+        installMode: STORE_AND_INSTALL
+        
+matchbox:
+  fhir:
+    context:
+      onlyOneEngine: true

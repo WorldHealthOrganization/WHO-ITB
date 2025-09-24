@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HCERT & SHLink Validator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .step-container {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .step-container:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+        }
+        
+        .step-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .step-number {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 15px;
+        }
+        
+        .step-title {
+            font-size: 1.3rem;
+            color: #333;
+            font-weight: 600;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        input[type="text"],
+        input[type="file"],
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+        
+        input[type="text"]:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .result pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 12px;
+            color: #333;
+        }
+        
+        .success {
+            background: #e8f5e9;
+            border-color: #4caf50;
+        }
+        
+        .error {
+            background: #ffebee;
+            border-color: #f44336;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-online {
+            background: #4caf50;
+        }
+        
+        .status-offline {
+            background: #f44336;
+        }
+        
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(76, 175, 80, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(76, 175, 80, 0);
+            }
+        }
+        
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 12px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+        
+        .info-box p {
+            color: #1565c0;
+            font-size: 14px;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 HCERT & SHLink Validator</h1>
+        
+        <!-- Status Check -->
+        <div class="step-container">
+            <div class="step-header">
+                <div class="step-number">✓</div>
+                <div class="step-title">Service Status</div>
+            </div>
+            <button onclick="checkStatus()">Check Status</button>
+            <div id="status-result"></div>
+        </div>
+        
+        <!-- Step 1: Decode Image -->
+        <div class="step-container">
+            <div class="step-header">
+                <div class="step-number">1</div>
+                <div class="step-title">Decode QR Image</div>
+              </div>
+              
+            <div class="info-box">
+                <p>Upload a QR code image containing an HC1 string or SHLink</p>
+            </div>
+            <div class="form-group">
+                <label for="qr-image">QR Code Image:</label>
+                <input type="file" id="qr-image" accept="image/*">
+            </div>
+            <button onclick="decodeImage()">Decode Image</button>
+            <button onclick="runFullFlow()">Run Full Flow</button>
+            <div id="decode-image-result"></div>
+            <div id="fullflow-result"></div>            
+        </div>
+
+
+        <!-- Step 2: Decode HCERT -->
+        <div class="step-container">
+            <div class="step-header">
+                <div class="step-number">2</div>
+                <div class="step-title">Decode HCERT</div>
+            </div>
+            <div class="info-box">
+                <p>Decode HC1 format data (Base45 → zlib → CBOR → COSE)</p>
+            </div>
+            <div class="form-group">
+                <label for="hc1-data">HC1 Data:</label>
+                <textarea id="hc1-data" placeholder="HC1:NCFOXN%TSMAHN-H3ZSUZK+.V0ET9%6-AH..."></textarea>
+            </div>
+            <button onclick="decodeHcert()">Decode HCERT</button>
+            <div id="decode-hcert-result"></div>
+        </div>
+        
+        <!-- Step 3: Extract Metadata -->
+        <div class="step-container">
+            <div class="step-header">
+                <div class="step-number">3</div>
+                <div class="step-title">Extract Metadata</div>
+            </div>
+            <div class="info-box">
+                <p>Extract KID and issuer from COSE/CWT data</p>
+            </div>
+            <button onclick="extractMetadata()">Extract Metadata</button>
+            <div id="metadata-result"></div>
+        </div>
+        
+        <!-- Step 4: Extract Reference -->
+        <div class="step-container">
+            <div class="step-header">
+                <div class="step-number">4</div>
+                <div class="step-title">Extract SHLink Reference</div>
+            </div>
+            <div class="info-box">
+                <p>Extract SMART Health Link reference from HCERT</p>
+            </div>
+            <button onclick="extractReference()">Extract Reference</button>
+            <div id="reference-result"></div>
+        </div>
+        
+        <!-- Step 5: Authorize with PIN -->
+        <div class="step-container">
+            <div class="step-header">
+                <div class="step-number">5</div>
+                <div class="step-title">Authorize with PIN</div>
+            </div>
+            <div class="info-box">
+                <p>Authorize access to PIN-protected SHLink</p>
+            </div>
+            <div class="form-group">
+                <label for="pin">PIN:</label>
+                <input type="text" id="pin" placeholder="1234">
+            </div>
+            <button onclick="authorize()">Authorize</button>
+            <div id="authorize-result"></div>
+        </div>
+        
+        <!-- Step 6: Fetch FHIR -->
+        <div class="step-container">
+            <div class="step-header">
+                <div class="step-number">6</div>
+                <div class="step-title">Fetch FHIR Resources</div>
+            </div>
+            <div class="info-box">
+                <p>Fetch FHIR resources from manifest</p>
+            </div>
+            <button onclick="fetchFhir()">Fetch FHIR</button>
+            <div id="fhir-result"></div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = window.location.origin;
+        let sessionData = {};
+        
+        async function apiCall(endpoint, method = 'GET', data = null) {
+            try {
+                const options = {
+                    method: method,
+                    headers: method === 'POST' ? {'Content-Type': 'application/json'} : {}
+                };
+                
+                if (data instanceof FormData) {
+                    delete options.headers['Content-Type'];
+                    options.body = data;
+                } else if (data) {
+                    options.body = JSON.stringify(data);
+                }
+                
+                const response = await fetch(API_BASE + endpoint, options);
+                const result = await response.json();
+                
+                if (!response.ok) {
+                    throw result;
+                }
+                
+                return result;
+            } catch (error) {
+                console.error('API call failed:', error);
+                throw error;
+            }
+        }
+        
+        function showResult(elementId, data, isError = false) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="result ${isError ? 'error' : 'success'}"><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+        }
+        
+        async function checkStatus() {
+            try {
+                const result = await apiCall('/status');
+                showResult('status-result', result);
+            } catch (error) {
+                showResult('status-result', error, true);
+            }
+        }
+        
+        async function decodeImage() {
+            const fileInput = document.getElementById('qr-image');
+            if (!fileInput.files[0]) {
+                alert('Please select an image file');
+                return;
+            }
+            
+            try {
+                const formData = new FormData();
+                formData.append('image', fileInput.files[0]);
+                
+                const result = await apiCall('/decode/image', 'POST', formData);
+                showResult('decode-image-result', result);
+                
+                // Store raw data for next step
+                if (result.qr_data) {
+                    sessionData.rawData = result.qr_data;
+                    document.getElementById('hc1-data').value = result.qr_data;
+                }
+            } catch (error) {
+                showResult('decode-image-result', error, true);
+            }
+        }
+        
+        async function decodeHcert() {
+          const hc1Data = document.getElementById('hc1-data').value;
+          if (!hc1Data) {
+            alert('Please enter HC1 data');
+            return;
+          }
+
+          try {
+            const result = await apiCall('/decode/hcert', 'POST', { qr_data: hc1Data });
+            showResult('decode-hcert-result', result);
+
+            console.log('[decodeHcert] result:', result); // <- debug
+            sessionData.cose = result.cose;
+            sessionData.payload = result.payload;
+            sessionData.hcert = result.hcert;  // should be an object (or null on failure)
+
+          } catch (error) {
+            showResult('decode-hcert-result', error, true);
+            console.error('[decodeHcert] error:', error); // <- debug
+          }
+        }
+        
+        async function extractMetadata() {
+            if (!sessionData.cose || !sessionData.payload) {
+                alert('Please decode HCERT first');
+                return;
+            }
+            
+            try {
+                const result = await apiCall('/extract/metadata', 'POST', {
+                    cose: sessionData.cose,
+                    payload: sessionData.payload
+                });
+                showResult('metadata-result', result);
+            } catch (error) {
+                showResult('metadata-result', error, true);
+            }
+        }
+        
+        async function extractReference() {
+          if (sessionData.hcert == null && !sessionData.payload) {
+            alert('Please decode HCERT first');
+            return;
+          }
+          const body = {};
+          if (sessionData.hcert != null) body.hcert = sessionData.hcert;
+          if (sessionData.payload) body.payload = sessionData.payload;
+
+          const result = await apiCall('/extract/reference', 'POST', body);
+          showResult('reference-result', result);
+          if (result.url) sessionData.shlinkUrl = result.url;
+        }
+        
+        async function authorize() {
+            if (!sessionData.shlinkUrl) {
+                alert('No SHLink URL available. Please extract reference first.');
+                return;
+            }
+            
+            const pin = document.getElementById('pin').value;
+            if (!pin) {
+                alert('Please enter a PIN');
+                return;
+            }
+            
+            try {
+                const result = await apiCall('/shlink/authorize', 'POST', {
+                    url: sessionData.shlinkUrl,
+                    pin: pin
+                });
+                showResult('authorize-result', result);
+                
+                // Store manifest for FHIR fetch
+                if (result.manifest) {
+                    sessionData.manifest = result.manifest;
+                }
+            } catch (error) {
+                showResult('authorize-result', error, true);
+            }
+        }
+        
+        async function fetchFhir() {
+            if (!sessionData.manifest) {
+                alert('No manifest available. Please authorize first.');
+                return;
+            }
+            
+            try {
+                const result = await apiCall('/shlink/fetch-fhir', 'POST', {
+                    manifest: sessionData.manifest
+                });
+                showResult('fhir-result', result);
+            } catch (error) {
+                showResult('fhir-result', error, true);
+            }
+        }
+        
+        async function runFullFlow() {
+          const fileInput = document.getElementById('qr-image');
+          const pin = document.getElementById('pin').value || ""; // may be optional
+          if (!fileInput.files[0]) {
+            alert('Please select a QR image first');
+            return;
+          }
+
+          try {
+            // 1) Decode image
+            const formData = new FormData();
+            formData.append('image', fileInput.files[0]);
+            const imgRes = await apiCall('/decode/image', 'POST', formData);
+            showResult('decode-image-result', imgRes);
+
+            if (!imgRes.qr_data) throw { error: 'no_qr_data', details: 'QR image did not produce data' };
+            document.getElementById('hc1-data').value = imgRes.qr_data;
+
+            // 2) Decode HCERT
+            const hcRes = await apiCall('/decode/hcert', 'POST', { qr_data: imgRes.qr_data });
+            showResult('decode-hcert-result', hcRes);
+
+            // stash
+            sessionData.cose = hcRes.cose;
+            sessionData.payload = hcRes.payload;
+            sessionData.hcert = hcRes.hcert;
+
+            // client-side fallback: rebuild hcert from payload -260/1 if needed
+            if (!sessionData.hcert && sessionData.payload) {
+              const p = sessionData.payload;
+              const cont = p['-260'] || p[-260];
+              if (cont && (cont['1'] || cont[1])) {
+                sessionData.hcert = cont['1'] || cont[1];
+                console.log('[fullflow] Reconstructed hcert from payload -260/1');
+              }
+            }
+
+            // 3) Extract Reference (send hcert and payload so backend can handle both cases)
+            const refBody = {};
+            if (sessionData.hcert != null) refBody.hcert = sessionData.hcert;
+            if (sessionData.payload) refBody.payload = sessionData.payload;
+
+            const refRes = await apiCall('/extract/reference', 'POST', refBody);
+            showResult('reference-result', refRes);
+
+            if (!refRes.url) throw { error: 'no_shlink_url', details: 'No SHLink URL in reference' };
+            sessionData.shlinkUrl = refRes.url;
+
+            // 4) Authorize (if PIN is needed; some SLinks may not need it)
+            let authRes;
+            try {
+              authRes = await apiCall('/shlink/authorize', 'POST', {
+                url: sessionData.shlinkUrl,
+                pin: pin
+              });
+              showResult('authorize-result', authRes);
+              sessionData.manifest = authRes.manifest || authRes; // support either shape
+            } catch (e) {
+              // If authorization fails but you still have a manifest-like body from extract/reference, skip
+              showResult('authorize-result', e, true);
+              if (!sessionData.manifest) throw e;
+            }
+
+            // 5) Fetch FHIR
+            if (!sessionData.manifest) {
+              throw { error: 'no_manifest', details: 'No manifest available for FHIR fetch' };
+            }
+            const fhirRes = await apiCall('/shlink/fetch-fhir', 'POST', { manifest: sessionData.manifest });
+            showResult('fhir-result', fhirRes);
+
+            showResult('fullflow-result', { ok: true, message: 'Full flow completed' });
+          } catch (err) {
+            console.error('[fullflow] error:', err);
+            showResult('fullflow-result', err, true);
+          }
+        }
+        
+
+        // Check status on load
+        window.onload = () => {
+            checkStatus();
+        };
+    </script>
+</body>
+</html>

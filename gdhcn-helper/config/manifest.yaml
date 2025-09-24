@@ -1,0 +1,6 @@
+bundles:
+  ba07611d-b9c8-4104-a086-554d8b6cc014:
+    pin: "1234"
+    key: "933bd441-158c-4888-95ac-4465530fa717"
+    # optional; defaults to <id>.json under public/bundles
+    # file: "ba07611d-b9c8-4104-a086-554d8b6cc014.json"
