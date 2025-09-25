@@ -27,4 +27,4 @@ COPY app.py .
 EXPOSE 8080
 
 # Run the application
-CMD ["python", "app.py"]
+CMD ["python", "app.py", "--debug"]

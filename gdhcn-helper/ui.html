@@ -83,7 +83,8 @@
         
         input[type="text"],
         input[type="file"],
-        textarea {
+        textarea,
+        select {
             width: 100%;
             padding: 10px;
             border: 2px solid #e0e0e0;
@@ -93,7 +94,8 @@
         }
         
         input[type="text"]:focus,
-        textarea:focus {
+        textarea:focus,
+        select:focus {
             outline: none;
             border-color: #667eea;
         }
@@ -115,6 +117,7 @@
             font-weight: 600;
             cursor: pointer;
             transition: transform 0.2s ease, box-shadow 0.2s ease;
+            margin-right: 10px;
         }
         
         button:hover {
@@ -155,6 +158,11 @@
         .error {
             background: #ffebee;
             border-color: #f44336;
+        }
+        
+        .warning {
+            background: #fff3cd;
+            border-color: #ffc107;
         }
         
         .status-indicator {
@@ -199,6 +207,52 @@
             font-size: 14px;
             margin: 0;
         }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+        }
+        
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            margin-right: 8px;
+        }
+        
+        .checkbox-group label {
+            display: inline;
+            font-weight: normal;
+            margin: 0;
+        }
+        
+        .advanced-options {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+            display: none;
+        }
+        
+        .advanced-options.show {
+            display: block;
+        }
+        
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        details {
+            margin-top: 10px;
+        }
+        
+        summary {
+            cursor: pointer;
+            color: #667eea;
+            font-weight: 600;
+            padding: 5px 0;
+        }
     </style>
 </head>
 <body>
@@ -220,8 +274,8 @@
             <div class="step-header">
                 <div class="step-number">1</div>
                 <div class="step-title">Decode QR Image</div>
-              </div>
-              
+            </div>
+            
             <div class="info-box">
                 <p>Upload a QR code image containing an HC1 string or SHLink</p>
             </div>
@@ -235,7 +289,6 @@
             <div id="fullflow-result"></div>            
         </div>
 
-
         <!-- Step 2: Decode HCERT -->
         <div class="step-container">
             <div class="step-header">
@@ -248,6 +301,10 @@
             <div class="form-group">
                 <label for="hc1-data">HC1 Data:</label>
                 <textarea id="hc1-data" placeholder="HC1:NCFOXN%TSMAHN-H3ZSUZK+.V0ET9%6-AH..."></textarea>
+            </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="include-raw" checked>
+                <label for="include-raw">Include raw COSE data for verification</label>
             </div>
             <button onclick="decodeHcert()">Decode HCERT</button>
             <div id="decode-hcert-result"></div>
@@ -266,10 +323,74 @@
             <div id="metadata-result"></div>
         </div>
         
-        <!-- Step 4: Extract Reference -->
+        <!-- Step 4: Verify Signature (NEW) -->
         <div class="step-container">
             <div class="step-header">
                 <div class="step-number">4</div>
+                <div class="step-title">Verify COSE Signature</div>
+            </div>
+            <div class="info-box">
+                <p>Verify the COSE signature using GDHCN trustlist</p>
+            </div>
+            
+            <div class="checkbox-group">
+                <input type="checkbox" id="use-gdhcn" checked onchange="toggleGDHCNOptions()">
+                <label for="use-gdhcn">Use GDHCN Trustlist</label>
+            </div>
+            
+            <div id="gdhcn-options">
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label for="gdhcn-env">Environment:</label>
+                        <select id="gdhcn-env">
+                            <option value="prod">Production</option>
+                            <option value="uat">UAT</option>
+                            <option value="dev">Development</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="participant">Participant (- for all):</label>
+                        <input type="text" id="participant" value="-" placeholder="XM, BEL, or - for all">
+                    </div>
+                </div>
+                
+                <details>
+                    <summary>Advanced Options</summary>
+                    <div class="advanced-options show">
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label for="domain">Domain:</label>
+                                <input type="text" id="domain" value="DCC">
+                            </div>
+                            <div class="form-group">
+                                <label for="usage">Usage:</label>
+                                <input type="text" id="usage" value="DSC">
+                            </div>
+                        </div>
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="verify-did-proof" checked>
+                            <label for="verify-did-proof">Verify trustlist DID proof</label>
+                        </div>
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="allow-remote-contexts" checked>
+                            <label for="allow-remote-contexts">Allow remote JSON-LD contexts</label>
+                        </div>
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="allow-unverified">
+                            <label for="allow-unverified">Allow unverified trustlist (not recommended)</label>
+                        </div>
+                    </div>
+                </details>
+            </div>
+            
+            <button onclick="verifySignature()">Verify Signature</button>
+            <div id="verify-result"></div>
+        </div>
+        
+        <!-- Step 5: Extract Reference -->
+        <div class="step-container">
+            <div class="step-header">
+                <div class="step-number">5</div>
                 <div class="step-title">Extract SHLink Reference</div>
             </div>
             <div class="info-box">
@@ -279,10 +400,10 @@
             <div id="reference-result"></div>
         </div>
         
-        <!-- Step 5: Authorize with PIN -->
+        <!-- Step 6: Authorize with PIN -->
         <div class="step-container">
             <div class="step-header">
-                <div class="step-number">5</div>
+                <div class="step-number">6</div>
                 <div class="step-title">Authorize with PIN</div>
             </div>
             <div class="info-box">
@@ -296,10 +417,10 @@
             <div id="authorize-result"></div>
         </div>
         
-        <!-- Step 6: Fetch FHIR -->
+        <!-- Step 7: Fetch FHIR -->
         <div class="step-container">
             <div class="step-header">
-                <div class="step-number">6</div>
+                <div class="step-number">7</div>
                 <div class="step-title">Fetch FHIR Resources</div>
             </div>
             <div class="info-box">
@@ -342,9 +463,50 @@
             }
         }
         
-        function showResult(elementId, data, isError = false) {
+        function showResult(elementId, data, isError = false, isWarning = false) {
             const element = document.getElementById(elementId);
-            element.innerHTML = `<div class="result ${isError ? 'error' : 'success'}"><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+            const className = isError ? 'error' : (isWarning ? 'warning' : 'success');
+            
+            // Special formatting for verify result
+            if (elementId === 'verify-result' && !isError) {
+                if (data.valid) {
+                    element.innerHTML = `
+                        <div class="result success">
+                            <strong>✅ Signature Valid!</strong><br>
+                            Verified with KID: ${data.verified_with_kid || 'N/A'}<br>
+                            Trustlist verified: ${data.trustlist_verified ? 'Yes' : 'No'}<br>
+                            Environment: ${data.gdhcn_env || 'N/A'}
+                        </div>
+                    `;
+                } else {
+                    element.innerHTML = `
+                        <div class="result error">
+                            <strong>❌ Signature Invalid</strong><br>
+                            KID in header: ${data.kid_in_header || 'None'}<br>
+                            KID (hex): ${data.kid_hex || 'None'}<br>
+                            Keys tried: ${data.candidates_tried || 0}<br>
+                            <details>
+                                <summary>Debug Information</summary>
+                                <pre>${JSON.stringify(data, null, 2)}</pre>
+                            </details>
+                        </div>
+                        <div class="result warning">
+                            <strong>Troubleshooting:</strong><br>
+                            • Try different environments (prod/uat/dev)<br>
+                            • Try specific participant codes instead of "-"<br>
+                            • Check if KID matches any in the trustlist
+                        </div>
+                    `;
+                }
+                return;
+            }
+            
+            element.innerHTML = `<div class="result ${className}"><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+        }
+        
+        function toggleGDHCNOptions() {
+            const useGdhcn = document.getElementById('use-gdhcn').checked;
+            document.getElementById('gdhcn-options').style.display = useGdhcn ? 'block' : 'none';
         }
         
         async function checkStatus() {
@@ -381,25 +543,30 @@
         }
         
         async function decodeHcert() {
-          const hc1Data = document.getElementById('hc1-data').value;
-          if (!hc1Data) {
-            alert('Please enter HC1 data');
-            return;
-          }
+            const hc1Data = document.getElementById('hc1-data').value;
+            const includeRaw = document.getElementById('include-raw').checked;
+            
+            if (!hc1Data) {
+                alert('Please enter HC1 data');
+                return;
+            }
 
-          try {
-            const result = await apiCall('/decode/hcert', 'POST', { qr_data: hc1Data });
-            showResult('decode-hcert-result', result);
+            try {
+                const result = await apiCall('/decode/hcert', 'POST', { 
+                    qr_data: hc1Data,
+                    include_raw: includeRaw 
+                });
+                showResult('decode-hcert-result', result);
 
-            console.log('[decodeHcert] result:', result); // <- debug
-            sessionData.cose = result.cose;
-            sessionData.payload = result.payload;
-            sessionData.hcert = result.hcert;  // should be an object (or null on failure)
+                console.log('[decodeHcert] result:', result);
+                sessionData.cose = result.cose;
+                sessionData.payload = result.payload;
+                sessionData.hcert = result.hcert;
 
-          } catch (error) {
-            showResult('decode-hcert-result', error, true);
-            console.error('[decodeHcert] error:', error); // <- debug
-          }
+            } catch (error) {
+                showResult('decode-hcert-result', error, true);
+                console.error('[decodeHcert] error:', error);
+            }
         }
         
         async function extractMetadata() {
@@ -414,23 +581,51 @@
                     payload: sessionData.payload
                 });
                 showResult('metadata-result', result);
+                sessionData.metadata = result;
             } catch (error) {
                 showResult('metadata-result', error, true);
             }
         }
         
+        async function verifySignature() {
+            if (!sessionData.cose || !sessionData.cose._raw) {
+                alert('Please decode HCERT first with "Include raw COSE data" checked');
+                return;
+            }
+            
+            try {
+                const params = {
+                    cose_raw: sessionData.cose._raw,
+                    use_gdhcn: document.getElementById('use-gdhcn').checked,
+                    gdhcn_env: document.getElementById('gdhcn-env').value,
+                    participant: document.getElementById('participant').value,
+                    domain: document.getElementById('domain').value,
+                    usage: document.getElementById('usage').value,
+                    verify_did_proof: document.getElementById('verify-did-proof').checked,
+                    allow_remote_contexts: document.getElementById('allow-remote-contexts').checked,
+                    allow_unverified_trustlist: document.getElementById('allow-unverified').checked
+                };
+                
+                const result = await apiCall('/verify/signature', 'POST', params);
+                showResult('verify-result', result, !result.valid);
+                sessionData.verifyResult = result;
+            } catch (error) {
+                showResult('verify-result', error, true);
+            }
+        }
+        
         async function extractReference() {
-          if (sessionData.hcert == null && !sessionData.payload) {
-            alert('Please decode HCERT first');
-            return;
-          }
-          const body = {};
-          if (sessionData.hcert != null) body.hcert = sessionData.hcert;
-          if (sessionData.payload) body.payload = sessionData.payload;
+            if (sessionData.hcert == null && !sessionData.payload) {
+                alert('Please decode HCERT first');
+                return;
+            }
+            const body = {};
+            if (sessionData.hcert != null) body.hcert = sessionData.hcert;
+            if (sessionData.payload) body.payload = sessionData.payload;
 
-          const result = await apiCall('/extract/reference', 'POST', body);
-          showResult('reference-result', result);
-          if (result.url) sessionData.shlinkUrl = result.url;
+            const result = await apiCall('/extract/reference', 'POST', body);
+            showResult('reference-result', result);
+            if (result.url) sessionData.shlinkUrl = result.url;
         }
         
         async function authorize() {
@@ -478,83 +673,117 @@
         }
         
         async function runFullFlow() {
-          const fileInput = document.getElementById('qr-image');
-          const pin = document.getElementById('pin').value || ""; // may be optional
-          if (!fileInput.files[0]) {
-            alert('Please select a QR image first');
-            return;
-          }
-
-          try {
-            // 1) Decode image
-            const formData = new FormData();
-            formData.append('image', fileInput.files[0]);
-            const imgRes = await apiCall('/decode/image', 'POST', formData);
-            showResult('decode-image-result', imgRes);
-
-            if (!imgRes.qr_data) throw { error: 'no_qr_data', details: 'QR image did not produce data' };
-            document.getElementById('hc1-data').value = imgRes.qr_data;
-
-            // 2) Decode HCERT
-            const hcRes = await apiCall('/decode/hcert', 'POST', { qr_data: imgRes.qr_data });
-            showResult('decode-hcert-result', hcRes);
-
-            // stash
-            sessionData.cose = hcRes.cose;
-            sessionData.payload = hcRes.payload;
-            sessionData.hcert = hcRes.hcert;
-
-            // client-side fallback: rebuild hcert from payload -260/1 if needed
-            if (!sessionData.hcert && sessionData.payload) {
-              const p = sessionData.payload;
-              const cont = p['-260'] || p[-260];
-              if (cont && (cont['1'] || cont[1])) {
-                sessionData.hcert = cont['1'] || cont[1];
-                console.log('[fullflow] Reconstructed hcert from payload -260/1');
-              }
+            const fileInput = document.getElementById('qr-image');
+            const pin = document.getElementById('pin').value || "";
+            const includeRaw = document.getElementById('include-raw').checked;
+            
+            if (!fileInput.files[0]) {
+                alert('Please select a QR image first');
+                return;
             }
 
-            // 3) Extract Reference (send hcert and payload so backend can handle both cases)
-            const refBody = {};
-            if (sessionData.hcert != null) refBody.hcert = sessionData.hcert;
-            if (sessionData.payload) refBody.payload = sessionData.payload;
-
-            const refRes = await apiCall('/extract/reference', 'POST', refBody);
-            showResult('reference-result', refRes);
-
-            if (!refRes.url) throw { error: 'no_shlink_url', details: 'No SHLink URL in reference' };
-            sessionData.shlinkUrl = refRes.url;
-
-            // 4) Authorize (if PIN is needed; some SLinks may not need it)
-            let authRes;
             try {
-              authRes = await apiCall('/shlink/authorize', 'POST', {
-                url: sessionData.shlinkUrl,
-                pin: pin
-              });
-              showResult('authorize-result', authRes);
-              sessionData.manifest = authRes.manifest || authRes; // support either shape
-            } catch (e) {
-              // If authorization fails but you still have a manifest-like body from extract/reference, skip
-              showResult('authorize-result', e, true);
-              if (!sessionData.manifest) throw e;
-            }
+                // 1) Decode image
+                const formData = new FormData();
+                formData.append('image', fileInput.files[0]);
+                const imgRes = await apiCall('/decode/image', 'POST', formData);
+                showResult('decode-image-result', imgRes);
 
-            // 5) Fetch FHIR
-            if (!sessionData.manifest) {
-              throw { error: 'no_manifest', details: 'No manifest available for FHIR fetch' };
-            }
-            const fhirRes = await apiCall('/shlink/fetch-fhir', 'POST', { manifest: sessionData.manifest });
-            showResult('fhir-result', fhirRes);
+                if (!imgRes.qr_data) throw { error: 'no_qr_data', details: 'QR image did not produce data' };
+                document.getElementById('hc1-data').value = imgRes.qr_data;
 
-            showResult('fullflow-result', { ok: true, message: 'Full flow completed' });
-          } catch (err) {
-            console.error('[fullflow] error:', err);
-            showResult('fullflow-result', err, true);
-          }
+                // 2) Decode HCERT with raw data for verification
+                const hcRes = await apiCall('/decode/hcert', 'POST', { 
+                    qr_data: imgRes.qr_data,
+                    include_raw: true  // Always include for full flow
+                });
+                showResult('decode-hcert-result', hcRes);
+
+                // stash
+                sessionData.cose = hcRes.cose;
+                sessionData.payload = hcRes.payload;
+                sessionData.hcert = hcRes.hcert;
+
+                // client-side fallback: rebuild hcert from payload -260/1 if needed
+                if (!sessionData.hcert && sessionData.payload) {
+                    const p = sessionData.payload;
+                    const cont = p['-260'] || p[-260];
+                    if (cont && (cont['1'] || cont[1])) {
+                        sessionData.hcert = cont['1'] || cont[1];
+                        console.log('[fullflow] Reconstructed hcert from payload -260/1');
+                    }
+                }
+
+                // 3) Extract metadata
+                if (sessionData.cose && sessionData.payload) {
+                    const metaRes = await apiCall('/extract/metadata', 'POST', {
+                        cose: sessionData.cose,
+                        payload: sessionData.payload
+                    });
+                    showResult('metadata-result', metaRes);
+                    sessionData.metadata = metaRes;
+                }
+
+                // 4) Verify signature (NEW)
+                if (sessionData.cose && sessionData.cose._raw) {
+                    const verifyRes = await apiCall('/verify/signature', 'POST', {
+                        cose_raw: sessionData.cose._raw,
+                        use_gdhcn: document.getElementById('use-gdhcn').checked,
+                        gdhcn_env: document.getElementById('gdhcn-env').value,
+                        participant: document.getElementById('participant').value,
+                        domain: document.getElementById('domain').value,
+                        usage: document.getElementById('usage').value,
+                        verify_did_proof: document.getElementById('verify-did-proof').checked,
+                        allow_remote_contexts: document.getElementById('allow-remote-contexts').checked,
+                        allow_unverified_trustlist: document.getElementById('allow-unverified').checked
+                    });
+                    showResult('verify-result', verifyRes, !verifyRes.valid);
+                    sessionData.verifyResult = verifyRes;
+                }
+
+                // 5) Extract Reference
+                const refBody = {};
+                if (sessionData.hcert != null) refBody.hcert = sessionData.hcert;
+                if (sessionData.payload) refBody.payload = sessionData.payload;
+
+                const refRes = await apiCall('/extract/reference', 'POST', refBody);
+                showResult('reference-result', refRes);
+
+                if (!refRes.url) throw { error: 'no_shlink_url', details: 'No SHLink URL in reference' };
+                sessionData.shlinkUrl = refRes.url;
+
+                // 6) Authorize (if PIN is needed)
+                let authRes;
+                try {
+                    authRes = await apiCall('/shlink/authorize', 'POST', {
+                        url: sessionData.shlinkUrl,
+                        pin: pin
+                    });
+                    showResult('authorize-result', authRes);
+                    sessionData.manifest = authRes.manifest || authRes;
+                } catch (e) {
+                    showResult('authorize-result', e, true);
+                    if (!sessionData.manifest) throw e;
+                }
+
+                // 7) Fetch FHIR
+                if (!sessionData.manifest) {
+                    throw { error: 'no_manifest', details: 'No manifest available for FHIR fetch' };
+                }
+                const fhirRes = await apiCall('/shlink/fetch-fhir', 'POST', { manifest: sessionData.manifest });
+                showResult('fhir-result', fhirRes);
+
+                showResult('fullflow-result', { 
+                    ok: true, 
+                    message: 'Full flow completed',
+                    signatureValid: sessionData.verifyResult?.valid || false
+                });
+            } catch (err) {
+                console.error('[fullflow] error:', err);
+                showResult('fullflow-result', err, true);
+            }
         }
         
-
         // Check status on load
         window.onload = () => {
             checkStatus();

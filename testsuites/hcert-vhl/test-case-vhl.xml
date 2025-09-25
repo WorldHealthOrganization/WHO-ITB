@@ -1,287 +1,372 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testcase id="test-case-vhl"
-	xmlns="http://www.gitb.com/tdl/v1/"
-	xmlns:gitb="http://www.gitb.com/core/v1/" >
+  xmlns="http://www.gitb.com/tdl/v1/"
+  xmlns:gitb="http://www.gitb.com/core/v1/" >
 
-	<!-- =====================================================================================
-	     OVERVIEW
-	     1) Ask user to upload a QR image
-	     2) POST /decode/image (multipart) -> get raw_data (HC1:)
-	     3) POST /decode/hcert with {"qr_data": "<HC1...>"} -> get cose/payload/hcert
-	     4) POST /extract/metadata with {"cose":..., "payload":...}
-	     5) POST /extract/reference with {"hcert":..., "payload":...} -> get short-link URL
-	     6) Ask PIN, POST /shlink/authorize with {"url":..., "pin":...} -> get manifest
-	     7) POST /shlink/fetch-fhir with {"manifest": <object>} -> get FHIR resources
-	     8) Pick first resource (array[0]) and FHIR $validate as Bundle
-	     ===================================================================================== -->
+  <!-- =====================================================================================
+       OVERVIEW
+       1) Ask user to upload a QR image
+       2) POST /decode/image (multipart) -> get raw_data (HC1:)
+       3) POST /decode/hcert with {"qr_data": "...", "include_raw": true} -> cose/payload/hcert + _raw
+       4) POST /extract/metadata with {"cose":..., "payload":...}
+       5) (Non-blocking) POST /verify/signature with {"cose_raw":...} on DEV, allow unverified trustlist
+       6) POST /extract/reference with {"hcert":..., "payload":...} -> short-link URL
+       7) Ask PIN, POST /shlink/authorize with {"url":..., "pin":...} -> manifest
+       8) POST /shlink/fetch-fhir with {"manifest": <object>} -> FHIR resources
+       9) Validate first Bundle on HAPI $validate
+       ===================================================================================== -->
+
+  <metadata>
+    <gitb:name>Validates QR Code, retrieves and validates LACPass RACSEL IPS 0.1.0</gitb:name>
+    <gitb:description>Validates QR Code, retrieves and validates LACPass RACSEL IPS 0.1.0</gitb:description>
+    <gitb:version>1.0</gitb:version>
+  </metadata>
+
+  <actors>
+    <gitb:actor id="User" role="SUT"/>
+    <gitb:actor id="HCertDecoder"/>
+    <gitb:actor id="VHLResponder"/>
+    <gitb:actor id="FHIRValidator"/>
+  </actors>
+
+  <steps>
+
+    <!-- 0.1: Request the user to upload a file -->
+    <interact id="userFileUpload" desc="Upload file">
+      <request desc="Upload a QRCode:" name="uploadedFile" inputType="UPLOAD" required="true"/>
+    </interact>
+
+    <!-- 0.2. Ask the user for the PIN -->
+    <assign to="pinValue">""</assign>
+    <interact id="enterPin" inputTitle="Authorize link" desc="Enter the PIN provided by the service">
+      <request desc="Enter PIN:">$pinValue</request>
+    </interact>
+
+    <!-- ===================== 1) Decode QRCode ===================== -->
+
+    <!-- 1.1 Build multipart parts list: a single file part named 'image' -->
+    <assign to="imgPart{name}">"image"</assign>
+    <assign to="imgPart{contentType}">"image/png"</assign>
+    <assign to="imgPart{fileName}">"upload.png"</assign>
+    <assign to="imgPart{content}">$userFileUpload{uploadedFile}</assign>
+    <assign to="sendParts" append="true">$imgPart</assign>
+    <assign to="reqHeaders{Accept}">"application/json"</assign>
+
+    <!-- 1.2 POST to http://hcert-validator:8080/decode/image with parts -->
+    <send id="img_to_content" desc="Decode QR image" handler="HttpMessagingV2" from="User" to="HCertDecoder" >
+      <input name="uri">"http://hcert-validator:8080/decode/image"</input>
+      <input name="method">"POST"</input>
+      <input name="parts">$sendParts</input>
+      <input name="headers">$reqHeaders</input>
+    </send>
+
+    <!-- ===================== 2) DECODE HC1 -> cose, payload, hcert ===================== -->
+
+    <!-- 2.1 Extract 'raw_data' from JSON response -->
+    <process handler="JsonPointerProcessor" operation="process" output="raw_data_value">
+      <input name="content">$img_to_content{response}{body}</input>
+      <input name="pointer">"/qr_data"</input>
+    </process>
+    <log>$raw_data_value</log>
+
+    <!-- 2.2 Build {"qr_data":"<HC1...>", "include_raw": true} -->
+    <assign to="tplParams{value}">$raw_data_value</assign>
+    <assign to="tplRef">'{"qr_data":"${value?json_string}","include_raw":true}'</assign>
+    <process handler="TemplateProcessor" operation="process" output="requestJson">
+      <input name="syntax">"freemarker"</input>
+      <input name="template">$tplRef</input>
+      <input name="parameters">$tplParams</input>
+    </process>
+    <log>"Data to decode:"</log>
+    <log>$requestJson</log>
+
+    <!-- POST to /decode/hcert (single call, includes _raw) -->
+    <assign to="hc1DecodeHeaders{Content-Type}">"application/json"</assign>
+    <send id="decode_hc1" desc="Decode HC1" from="User" to="HCertDecoder" handler="HttpMessagingV2">
+      <input name="uri">"http://hcert-validator:8080/decode/hcert"</input>
+      <input name="method">"POST"</input>
+      <input name="body">$requestJson</input>
+      <input name="headers">$hc1DecodeHeaders</input>
+    </send>
+    <log>$decode_hc1{response}{body}</log>
+
+    <!-- Extract cose and payload for next steps -->
+    <process handler="JsonPointerProcessor" operation="process" output="coseVal">
+      <input name="content">$decode_hc1{response}{body}</input>
+      <input name="pointer">"/cose"</input>
+    </process>
+    <process handler="JsonPointerProcessor" operation="process" output="payloadVal">
+      <input name="content">$decode_hc1{response}{body}</input>
+      <input name="pointer">"/payload"</input>
+    </process>
+
+    <!-- Build {"cose": <obj>, "payload": <obj>} (values are JSON fragments) -->
+    <assign to="tplParams2{cose}">$coseVal</assign>
+    <assign to="tplParams2{payload}">$payloadVal</assign>
+    <assign to="tpl2Ref">'{"cose":${cose},"payload":${payload}}'</assign>
+    <process handler="TemplateProcessor" operation="process" output="requestJson2">
+      <input name="syntax">"freemarker"</input>
+      <input name="template">$tpl2Ref</input>
+      <input name="parameters">$tplParams2</input>
+    </process>
+
+    <!-- 3) POST to /extract/metadata -->
+    <assign to="headers{Content-Type}">"application/json"</assign>
+    <assign to="extractUrl">"http://hcert-validator:8080/extract/metadata"</assign>
+    <send id="extractMeta" desc="Extract metadata" handler="HttpMessagingV2" from="User" to="HCertDecoder" >
+      <input name="uri">$extractUrl</input>
+      <input name="method">"POST"</input>
+      <input name="headers">$headers</input>
+      <input name="body">$requestJson2</input>
+    </send>
+
+<!-- ===================== 3.5) COSE SIGNATURE VERIFICATION (NON-BLOCKING) ===================== -->
+
+<!-- Pull raw COSE triplet (_raw) from /decode/hcert -->
+<process handler="JsonPointerProcessor" operation="process" output="coseRaw">
+  <input name="content">$decode_hc1{response}{body}</input>
+  <input name="pointer">"/cose/_raw"</input>
+</process>
+
+<!-- Build verifier request JSON for DEV, allowing unverified trustlist -->
+<assign to="verifyParams{cose_raw}">$coseRaw</assign>
+<assign to="verifyParams{use_gdhcn}">true()</assign>
+<assign to="verifyParams{gdhcn_env}">"dev"</assign>
+<assign to="verifyParams{participant}">"-"</assign>
+<assign to="verifyParams{domain}">"DCC"</assign>
+<assign to="verifyParams{usage}">"DSC"</assign>
+<assign to="verifyParams{verify_did_proof}">true()</assign>
+<assign to="verifyParams{allow_unverified_trustlist}">true()</assign>
+<assign to="verifyParams{allow_remote_contexts}">true()</assign>
+<assign to="verifyParams{context_dir}">"contexts"</assign>
+
+<!-- Keep cose_raw as a raw JSON fragment -->
+<assign to="verifyTpl">
+  '{"cose_raw":${cose_raw},"use_gdhcn":${use_gdhcn?c},"gdhcn_env":"${gdhcn_env}","participant":"${participant}","domain":"${domain}","usage":"${usage}","verify_did_proof":${verify_did_proof?c},"allow_unverified_trustlist":${allow_unverified_trustlist?c},"allow_remote_contexts":${allow_remote_contexts?c},"context_dir":"${context_dir}"}'
+</assign>
+<process handler="TemplateProcessor" operation="process" output="verifyBody">
+  <input name="syntax">"freemarker"</input>
+  <input name="template">$verifyTpl</input>
+  <input name="parameters">$verifyParams</input>
+</process>
+
+<!-- Call verifier -->
+<assign to="verifyHeaders{Content-Type}">"application/json"</assign>
+<send id="verifyCose" desc="Verify COSE signature (non-blocking)" handler="HttpMessagingV2" from="User" to="HCertDecoder">
+  <input name="uri">"http://hcert-validator:8080/verify/signature"</input>
+  <input name="method">"POST"</input>
+  <input name="headers">$verifyHeaders</input>
+  <input name="body">$verifyBody</input>
+</send>
+
+<!-- Store HTTP status -->
+<assign to="sigHttp">$verifyCose{response}{status}</assign>
+
+<!-- Extract all response fields for analysis -->
+<process handler="JsonPointerProcessor" operation="process" output="sigValid">
+  <input name="content">$verifyCose{response}{body}</input>
+  <input name="pointer">"/valid"</input>
+</process>
+
+<process handler="JsonPointerProcessor" operation="process" output="sigKid">
+  <input name="content">$verifyCose{response}{body}</input>
+  <input name="pointer">"/verified_with_kid"</input>
+</process>
+
+<process handler="JsonPointerProcessor" operation="process" output="sigKidHdr">
+  <input name="content">$verifyCose{response}{body}</input>
+  <input name="pointer">"/kid_in_header"</input>
+</process>
+
+<process handler="JsonPointerProcessor" operation="process" output="sigMsg">
+  <input name="content">$verifyCose{response}{body}</input>
+  <input name="pointer">"/message"</input>
+</process>
+
+<process handler="JsonPointerProcessor" operation="process" output="sigTried">
+  <input name="content">$verifyCose{response}{body}</input>
+  <input name="pointer">"/candidates_tried"</input>
+</process>
+
+<!-- VERIFICATION CHECKS THAT WILL SHOW RED BUT CONTINUE -->
+
+<!-- Check 1: HTTP Status (shows RED if not 200) -->
+<verify handler="NumberValidator" desc="COSE signature HTTP response check">
+  <input name="actualnumber">$sigHttp</input>
+  <input name="expectednumber">"200"</input>
+</verify>
+
+<!-- Check 2: Signature validity (shows RED if not "true") -->
+<verify handler="StringValidator" desc="COSE signature validity check">
+  <input name="actualstring">$sigValid</input>
+  <input name="expectedstring">"true"</input>
+</verify>
+
+<!-- Optional: Combined check using expression (this also shows RED on failure) -->
+<verify handler="ExpressionValidator" desc="COSE signature verification successful">
+  <input name="expression">($sigHttp = "200") and ($sigValid = "true")</input>
+</verify>
+
+<!-- Detailed logging for debugging -->
+<log>"=========================================="</log>
+<log>"SIGNATURE VERIFICATION RESULTS:"</log>
+<log>"  HTTP Status: " || $sigHttp || " (expected 200)"</log>
+<log>"  Valid: " || $sigValid || " (expected true)"</log>
+<log>"  KID in header: " || $sigKidHdr</log>
+<log>"  KID verified with: " || $sigKid</log>
+<log>"  Candidates tried: " || $sigTried</log>
+<log>"  Message: " || $sigMsg</log>
+<log>"=========================================="</log>
+
+<!-- Conditional message based on result -->
+<if>
+  <cond>($sigHttp = "200") and ($sigValid = "true")</cond>
+  <then>
+    <log>"✅ Signature verification PASSED"</log>
+  </then>
+  <else>
+    <log>"⚠️ Signature verification FAILED - continuing with test"</log>
+    <!-- Extract more debug info on failure -->
+    <process handler="JsonPointerProcessor" operation="process" output="sigTrustKeys">
+      <input name="content">$verifyCose{response}{body}</input>
+      <input name="pointer">"/trustlist_keys"</input>
+    </process>
+    <log>"  Available KIDs in trustlist: " || substring(string($sigTrustKeys), 1, 500)</log>
+  </else>
+</if>
+
+    <!-- ===================== 4) EXTRACT REFERENCE (hcert + payload) ===================== -->
+
+    <process handler="JsonPointerProcessor" operation="process" output="hcertVal">
+      <input name="content">$decode_hc1{response}{body}</input>
+      <input name="pointer">"/hcert"</input>
+    </process>
+    <process handler="JsonPointerProcessor" operation="process" output="payloadVal2">
+      <input name="content">$decode_hc1{response}{body}</input>
+      <input name="pointer">"/payload"</input>
+    </process>
+
+    <assign to="tplParamsRef{hcert}">$hcertVal</assign>
+    <assign to="tplParamsRef{payload}">$payloadVal2</assign>
+    <assign to="tplRef2">'{"hcert":${hcert},"payload":${payload}}'</assign>
+    <process handler="TemplateProcessor" operation="process" output="requestJsonRef">
+      <input name="syntax">"freemarker"</input>
+      <input name="template">$tplRef2</input>
+      <input name="parameters">$tplParamsRef</input>
+    </process>
+
+    <!-- POST /extract/reference (returns short-link URL) -->
+    <assign to="headers{Content-Type}">"application/json"</assign>
+    <assign to="refUrl">"http://hcert-validator:8080/extract/reference"</assign>
+    <send id="extractRef" desc="Extract reference" handler="HttpMessagingV2" from="User" to="HCertDecoder">
+      <input name="uri">$refUrl</input>
+      <input name="method">"POST"</input>
+      <input name="headers">$headers</input>
+      <input name="body">$requestJsonRef</input>
+    </send>
+
+    <verify handler="NumberValidator" desc="HTTP status is 200">
+      <input name="actualnumber">$extractRef{response}{status}</input>
+      <input name="expectednumber">"200"</input>
+    </verify>
+
+    <!-- ===================== 5) AUTHORIZE SHORT LINK (ask PIN) ===================== -->
+
+    <process handler="JsonPointerProcessor" operation="process" output="refUrlOut">
+      <input name="content">$extractRef{response}{body}</input>
+      <input name="pointer">"/url"</input>
+    </process>
+
+    <assign to="tpl3{url}">$refUrlOut</assign>
+    <assign to="tpl3{pin}">$pinValue</assign>
+    <assign to="tplRef3">'{"url":"${url}","pin":"${pin}"}'</assign>
+    <process handler="TemplateProcessor" operation="process" output="authBody">
+      <input name="syntax">"freemarker"</input>
+      <input name="template">$tplRef3</input>
+      <input name="parameters">$tpl3</input>
+    </process>
+
+    <assign to="headers{Content-Type}">"application/json"</assign>
+    <send id="authorizeLink" desc="Authorize short link" handler="HttpMessagingV2" from="User" to="VHLResponder">
+      <input name="uri">"http://hcert-validator:8080/shlink/authorize"</input>
+      <input name="method">"POST"</input>
+      <input name="headers">$headers</input>
+      <input name="body">$authBody</input>
+    </send>
 
 
-	<metadata>
-		<gitb:name>Validates QR Code, retrieves and validates LACPass RACSEL IPS 0.1.0</gitb:name>
-		<gitb:description>Validates QR Code, retrieves and validates LACPass RACSEL IPS 0.1.0</gitb:description>
-		<gitb:version>1.0</gitb:version>
-	</metadata>
-	<actors>
-		<!-- Define which test suite actor is the System Under Test (SUT). -->
-		<gitb:actor id="User" role="SUT"/>
-		<gitb:actor id="HCertDecoder"/>
-		<gitb:actor id="VHLResponder"/>
-		<gitb:actor id="FHIRValidator"/>
-	</actors>
-	<steps>
 
+    <verify handler="NumberValidator" desc="HTTP 200 OK">
+      <input name="actualnumber">$authorizeLink{response}{status}</input>
+      <input name="expectednumber">"200"</input>
+    </verify>
 
+    <!-- ===================== 6) FETCH FHIR VIA MANIFEST ===================== -->
 
-	<!-- 0.1: Request the user to upload a file -->
-		<interact id="userFileUpload" desc="Upload file">
-			<request desc="Upload a QRCode:" name="uploadedFile" inputType="UPLOAD" required="true"/>
-		</interact>
+    <process handler="JsonPointerProcessor" operation="process" output="manifestVal">
+      <input name="content">$authorizeLink{response}{body}</input>
+      <input name="pointer">"/manifest"</input>
+    </process>
+    <assign to="tpl4{manifest}">$manifestVal</assign>
+    <assign to="tplRef4">
+    '{"manifest": ${manifest?has_content?then(manifest, "null")}}'
+    </assign>
+    <process handler="TemplateProcessor" operation="process" output="fetchBody">
+      <input name="syntax">"freemarker"</input>
+      <input name="template">$tplRef4</input>
+      <input name="parameters">$tpl4</input>
+    </process>
 
-	<!-- 0.2. Ask the user for the PIN -->
-		<assign to="pinValue">""</assign>
-		<interact id="enterPin" inputTitle="Authorize link" desc="Enter the PIN provided by the service">
-			<request desc="Enter PIN:">$pinValue</request>
-		</interact>		
+    <assign to="headers{Content-Type}">"application/json"</assign>
+    <assign to="headers{Accept}">"application/fhir+json"</assign>
+    <assign to="fetchUrl">"http://hcert-validator:8080/shlink/fetch-fhir"</assign>
+    <send id="fetchFhir" desc="Fetch FHIR" handler="HttpMessagingV2" from="User" to="VHLResponder">
+      <input name="uri">$fetchUrl</input>
+      <input name="method">"POST"</input>
+      <input name="headers">$headers</input>
+      <input name="body">$fetchBody</input>
+    </send>
+    <verify handler="NumberValidator" desc="HTTP 200 OK">
+      <input name="actualnumber">$fetchFhir{response}{status}</input>
+      <input name="expectednumber">"200"</input>
+    </verify>
 
+    <!-- Parse FHIR array and take the first resource -->
+    <process handler="JsonPointerProcessor" operation="process" output="fhirResource">
+      <input name="content">$fetchFhir{response}{body}</input>
+      <input name="pointer">"/fhir"</input>
+    </process>
+    <log>$fhirResource</log>
+    <process handler="JsonPointerProcessor" operation="process" output="firstResource">
+      <input name="content">$fhirResource</input>
+      <input name="pointer">"/0/resource"</input>
+    </process>
 
+    <!-- ===================== 7) Validate Bundle ===================== -->
+    <assign to="base">"http://fhir-server:8080/fhir/"</assign>
+    <assign to="targetProfileUrl">"http://lacpass.racsel.org/StructureDefinition/lac-bundle"</assign>
+    <assign to="headers{Content-Type}">"application/fhir+json"</assign>
+    <assign to="headers{Accept}">"application/fhir+json"</assign>
+    <assign to="params{profile}">$targetProfileUrl</assign>
 
-<!-- ===================== 1) Decode QRCode ===================== -->    
+    <send id="validationResult" desc="FHIR $validate" handler="HttpMessagingV2" from="User" to="FHIRValidator">
+      <input name="uri">$base || "/Bundle/$validate"</input>
+      <input name="method">"POST"</input>
+      <input name="headers">$headers</input>
+      <input name="parameters">$params</input>
+      <input name="body">$firstResource</input>
+    </send>
+    <log>$validationResult</log>
+    <verify handler="NumberValidator" desc="HTTP 200">
+      <input name="actualnumber">$validationResult{response}{status}</input>
+      <input name="expectednumber">"200"</input>
+    </verify>
 
-<!-- 1.1 Build multipart parts list: a single file part named 'image' -->
-		<assign to="imgPart{name}">"image"</assign>
-		<assign to="imgPart{contentType}">"image/png"</assign>
-		<assign to="imgPart{fileName}">"upload.png"</assign>
-		<assign to="imgPart{content}">$userFileUpload{uploadedFile}</assign>
-		<assign to="sendParts" append="true">$imgPart</assign>
-		<assign to="reqHeaders{Accept}">"application/json"</assign>
-<!-- 1.2 POST to http://hcert-validator:8080/decode/image with parts -->
-		<send id="img_to_content" desc="Decode QR image" handler="HttpMessagingV2" from="User" to="HCertDecoder" >
-			<input name="uri">"http://hcert-validator:8080/decode/image"</input>
-			<input name="method">"POST"</input>
-			<input name="parts">$sendParts</input>
-			<input name="headers">$reqHeaders</input>
-		</send>
+  </steps>
 
-
-<!-- ===================== 2 DECODE HC1 -> cose, payload, hcert ===================== -->
-
-<!-- 2.1 Extract 'raw_data' from JSON response -->
-		<process handler="JsonPointerProcessor" operation="process" output="raw_data_value">
-			<input name="content">$img_to_content{response}{body}</input>
-			<input name="pointer">"/qr_data"</input>
-		</process>
-		<log>$raw_data_value</log>
-
-<!-- 2.2. Build {"qr_data":"<HC1...>"} using a template (JSON-safe) -->
-		<assign to="tplParams{value}">$raw_data_value</assign>
-		<process handler="TemplateProcessor" operation="process" output="requestJson">
-			<input name="syntax">"freemarker"</input>
-			<!-- Use ?json_string so quotes/backslashes/etc are escaped correctly -->
-			<input name="template">'{"qr_data":"${value?json_string}"}'</input>
-			<input name="parameters">$tplParams</input>
-		</process>
-		<log>"Data to decode:"</log>
-		<log>$requestJson</log>
-
-
-<!-- POST to /decode/hcert -->
-		<assign to="hc1DecodeHeaders{Content-Type}">"application/json"</assign>
-		<send id="decode_hc1" desc="Decode HC1" from="User" to="HCertDecoder" handler="HttpMessagingV2">
-			<input name="uri">"http://hcert-validator:8080/decode/hcert"</input>
-			<input name="method">"POST"</input>
-			<input name="body">$requestJson</input>
-			<input name="headers">$hc1DecodeHeaders</input>
-		</send>
-		<log>$decode_hc1{response}{body}</log>
-
-<!-- Extract cose and payload for next steps -->        
-		<process handler="JsonPointerProcessor" operation="process" output="coseVal">
-			<input name="content">$decode_hc1{response}{body}</input>
-			<input name="pointer">"/cose"</input>
-		</process>
-		<process handler="JsonPointerProcessor" operation="process" output="payloadVal">
-			<input name="content">$decode_hc1{response}{body}</input>
-			<input name="pointer">"/payload"</input>
-		</process>
-		<!-- <log>$payloadVal</log> -->
-<!-- Build {"cose": <obj>, "payload": <obj>} (values are JSON fragments) -->
-		<assign to="tplParams2{cose}">$coseVal</assign>
-		<assign to="tplParams2{payload}">$payloadVal</assign>
-		<assign to="tpl2Ref">'{"cose":${cose},"payload":${payload}}'</assign>
-		<process handler="TemplateProcessor" operation="process" output="requestJson2">
-			<input name="syntax">"freemarker"</input>
-			<input name="template">$tpl2Ref</input>
-			<input name="parameters">$tplParams2</input>
-		</process>
-		<!-- <log>"Metadata to decode:"</log><log>$requestJson2</log> -->
-
-<!-- 3) POST to /extract/metadata -->
-		<assign to="headers{Content-Type}">"application/json"</assign>
-		<assign to="extractUrl">"http://hcert-validator:8080/extract/metadata"</assign>
-		<send id="extractMeta" desc="Extract metadata" handler="HttpMessagingV2" from="User" to="HCertDecoder" >
-			<input name="uri">$extractUrl</input>
-			<input name="method">"POST"</input>
-			<input name="headers">$headers</input>
-			<input name="body">$requestJson2</input>
-		</send>
-		<!-- (Optional) check 200 and show result to user -->
-		<!-- <verify handler="NumberValidator" desc="HTTP status is 200"><input name="actualnumber">$extractMeta{response}{status}</input><input name="expectednumber">"200"</input></verify> -->
-		<!-- <log>$extractMeta{response}{body}</log> -->
-		<!-- 1) Extract hcert and payload from the previous response -->
-
-<!-- ===================== 4 EXTRACT REFERENCE (hcert + payload) ===================== -->
-<!-- get values to build JSON -->
-		<process handler="JsonPointerProcessor" operation="process" output="hcertVal">
-			<input name="content">$decode_hc1{response}{body}</input>
-			<input name="pointer">"/hcert"</input>
-		</process>
-		<process handler="JsonPointerProcessor" operation="process" output="payloadVal">
-			<input name="content">$decode_hc1{response}{body}</input>
-			<input name="pointer">"/payload"</input>
-		</process>
-<!-- 2) Build the JSON body safely -->
-		<assign to="tplParams2{hcert}">$hcertVal</assign>
-		<assign to="tplParams2{payload}">$payloadVal</assign>
-		<assign to="tplRef2">'{"hcert":${hcert},"payload":${payload}}'</assign>
-		<process handler="TemplateProcessor" operation="process" output="requestJsonRef">
-			<input name="syntax">"freemarker"</input>
-			<input name="template">$tplRef2</input>
-			<input name="parameters">$tplParams2</input>
-		</process>
-<!-- POST /extract/reference (returns short-link URL) -->
-		<assign to="headers{Content-Type}">"application/json"</assign>
-		<assign to="refUrl">"http://hcert-validator:8080/extract/reference"</assign>
-		<send id="extractRef" desc="Extract reference" handler="HttpMessagingV2" from="User" to="HCertDecoder">
-			<input name="uri">$refUrl</input>
-			<input name="method">"POST"</input>
-			<input name="headers">$headers</input>
-			<input name="body">$requestJsonRef</input>
-		</send>
-<!-- (Optional) verify and inform user -->
-		<!-- <log>$extractRef{response}{body}</log> -->
-		<verify handler="NumberValidator" desc="HTTP status is 200">
-			<input name="actualnumber">$extractRef{response}{status}</input>
-			<input name="expectednumber">"200"</input>
-		</verify>
-
-<!-- ===================== 6) AUTHORIZE SHORT LINK (ask PIN) ===================== -->
-<!-- Extract URL returned by /extract/reference -->
-		<process handler="JsonPointerProcessor" operation="process" output="refUrl">
-			<input name="content">$extractRef{response}{body}</input>
-			<!-- or $extractReference{response}{body} -->
-			<input name="pointer">"/url"</input>
-		</process>
-
-		<!-- <log>$pinValue</log><log>$refUrl</log> -->
-<!-- 4) Build the JSON body (url and pin are strings)-->
-		<assign to="tpl3{url}">$refUrl</assign>
-		<assign to="tpl3{pin}">$pinValue</assign>
-		<assign to="tplRef3">'{"url":"${url}","pin":"${pin}"}'</assign>
-		<process handler="TemplateProcessor" operation="process" output="authBody">
-			<input name="syntax">"freemarker"</input>
-			<input name="template">$tplRef3</input>
-			<input name="parameters">$tpl3</input>
-		</process>
-		<!-- <log>"Auth Body:"</log><log>$authBody</log> -->
-<!-- POST to /shlink/authorize -->
-		<assign to="headers{Content-Type}">"application/json"</assign>
-		<send id="authorizeLink" desc="Authorize short link" handler="HttpMessagingV2" from="User" to="VHLResponder">
-			<input name="uri">"http://hcert-validator:8080/shlink/authorize"</input>
-			<input name="method">"POST"</input>
-			<input name="headers">$headers</input>
-			<input name="body">$authBody</input>
-			<!-- In your ITB build TemplateProcessor returns a string -->
-		</send>
-		<!-- Optional: verify and show result -->
-		<verify handler="NumberValidator" desc="HTTP 200 OK">
-			<input name="actualnumber">$authorizeLink{response}{status}</input>
-			<input name="expectednumber">"200"</input>
-		</verify>
-
-
-<!-- ===================== 7) FETCH FHIR VIA MANIFEST ===================== -->
-<!-- Extract "manifest" object from authorize response -->
-		<process handler="JsonPointerProcessor" operation="process" output="manifestVal">
-			<input name="content">$authorizeLink{response}{body}</input>
-			<input name="pointer">"/manifest"</input>
-		</process>
-		<!-- <log>"manifestVal:"</log><log>$manifestVal</log> -->
-		<assign to="tpl4{manifest}">$manifestVal</assign>
-		<assign to="tplRef4">'{"manifest": ${manifest}}'</assign>
-
-<!-- Create JSON object for request {"manifest": <raw JSON>} -->
-		<process handler="TemplateProcessor" operation="process" output="fetchBody">
-			<input name="syntax">"freemarker"</input>
-			<!-- Keep it a string literal; CDATA optional but convenient -->
-			<input name="template">$tplRef4</input>
-			<input name="parameters">$tpl4</input>
-		</process>
-		<!-- <log>"fetchBody:"</log><log>$fetchBody</log> -->
-		
-<!-- POST /shlink/fetch-fhir -->		
-        <assign to="headers{Content-Type}">"application/json"</assign>
-		<assign to="headers{Accept}">"application/fhir+json"</assign>		
-		<assign to="fetchUrl">"http://hcert-validator:8080/shlink/fetch-fhir"</assign>
-		<send id="fetchFhir" desc="Fetch FHIR" handler="HttpMessagingV2" from="User" to="VHLResponder">
-			<input name="uri">$fetchUrl</input>
-			<input name="method">"POST"</input>
-			<input name="headers">$headers</input>
-			<input name="body">$fetchBody</input>
-		</send>
-		<!-- Optional checks & user feedback -->
-		<verify handler="NumberValidator" desc="HTTP 200 OK">
-			<input name="actualnumber">$fetchFhir{response}{status}</input>
-			<input name="expectednumber">"200"</input>
-		</verify>
-		<!-- <log>$fetchFhir{response}{body}</log>-->
-
-<!-- Parse FHIR array and take the first resource -->        
-		<process handler="JsonPointerProcessor" operation="process" output="fhirResource">
-			<input name="content">$fetchFhir{response}{body}</input>
-			<input name="pointer">"/fhir"</input>
-		</process>
-		<log>$fhirResource</log>
-		<!-- now call the $validate operation on the FHIR server -->
-		<!-- <send id="fhirValidation" desc="Validate FHIR content" handler="HttpMessagingV2" from="User" to="User"><input name="uri">$fhirServerUrl</input><input name="method">"POST"</input><input name="headers">$headers</input><input name="body">$fetchBody</input></send> -->
-		<process handler="JsonPointerProcessor" operation="process" output="firstResource">
-			<input name="content">$fhirResource</input>
-			<!-- This is your array string -->
-			<input name="pointer">"/0/resource"</input>
-		</process>
-
-
-
-<!-- Use internal HAPI server to validate Bundle -->
-<!-- Base FHIR endpoint + profile (validate Bundle) -->
-		<assign to="base">"http://fhir-server:8080/fhir/"</assign>
-		<assign to="targetProfileUrl">"http://lacpass.racsel.org/StructureDefinition/lac-bundle"</assign>
-		<!-- your profile -->
-<!-- Headers for FHIR JSON -->
-		<assign to="headers{Content-Type}">"application/fhir+json"</assign>
-		<assign to="headers{Accept}">"application/fhir+json"</assign>
-<!-- Build query parameters (will be URL-encoded by the handler) -->
-		<assign to="params{profile}">$targetProfileUrl</assign>
-
-<!-- POST $validate with body = $fhirResource (JSON object) -->
-		<send id="validationResult" desc="FHIR $validate" handler="HttpMessagingV2" from="User" to="FHIRValidator">
-			<input name="uri">$base || "/Bundle/$validate"</input>
-			<input name="method">"POST"</input>
-			<input name="headers">$headers</input>
-			<input name="parameters">$params</input>
-			<input name="body">$firstResource</input>
-		</send>
-<!-- Log entire response map (status/body/etc.) -->        
-		<log>$validationResult</log>
-<!-- Assert 200 OK from FHIR validation -->
-		<verify handler="NumberValidator" desc="HTTP 200">
-			<input name="actualnumber">$validationResult{response}{status}</input>
-			<input name="expectednumber">"200"</input>
-		</verify>
-	</steps>
-<!-- Show a user-friendly message once the test session completes successfully. -->
-	<output>
-		<success>
-			<default>"Test session completed successfully."</default>
-		</success>
-	</output>
+  <output>
+    <success>
+      <default>"Test session completed successfully."</default>
+    </success>
+  </output>
 </testcase>
