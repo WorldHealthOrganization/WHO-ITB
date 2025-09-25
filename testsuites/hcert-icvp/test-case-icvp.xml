@@ -4,7 +4,7 @@
   xmlns:gitb="http://www.gitb.com/core/v1/">
 
   <metadata>
-    <gitb:name>ICVP: Barcode Image → IPS Bundle</gitb:name>
+    <gitb:name>Validates QR code, retrieves and validates ICVP IPS Bundle.</gitb:name>
     <gitb:description>
       Upload a barcode image, decode to HC1 and CWT payload, install IGs on Matchbox via SMART Helper,
       transform inner content using ICVPClaimtoIPS, and validate the result against IPS Bundle profile.
@@ -116,7 +116,7 @@
     <assign to="igHeaders{Accept}">"application/json"</assign>
 
     <!-- IG #1 (JSON body with direct host URL) -->
-    <assign to="ig1Params{url}">"https://build.fhir.org/ig/WorldHealthOrganization/smart-trust-phw/"</assign>
+    <assign to="ig1Params{url}">"https://worldhealthorganization.github.io/smart-trust-phw"</assign>
     <assign to="ig1Params{target}">"matchbox"</assign>
     <assign to="ig1Template">'{"ig_url":"${url}", "target":"${target}"}'</assign>
     <process handler="TemplateProcessor" operation="process" output="igBody1">
@@ -222,7 +222,7 @@
 </process>
 
 <!-- Build the wrapper JSON using string concatenation -->
-<assign to="validateBody">concat('{"resource": ', $valResourceBody, ', "profile_url": "http://hl7.org/fhir/uv/ips/StructureDefinition/Bundle-uv-ips", "host": "http://fhir-server:8080/fhir"}')</assign>
+<assign to="validateBody">concat('{"resource": ', $valResourceBody, ', "profile_url": "http://smart.who.int/icvp/StructureDefinition/Bundle-uv-ips-ICVP", "host": "http://fhir-server:8080/fhir"}')</assign>
 
 <log>concat('Validation body: ', $validateBody)</log>
 

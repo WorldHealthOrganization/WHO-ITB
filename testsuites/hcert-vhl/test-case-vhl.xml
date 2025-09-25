@@ -17,8 +17,8 @@
 
 
 	<metadata>
-		<gitb:name>Test case 1: HVL</gitb:name>
-		<gitb:description>Test case For processing a QRCode and getting the VHL content</gitb:description>
+		<gitb:name>Validates QR Code, retrieves and validates LACPass RACSEL IPS 0.1.0</gitb:name>
+		<gitb:description>Validates QR Code, retrieves and validates LACPass RACSEL IPS 0.1.0</gitb:description>
 		<gitb:version>1.0</gitb:version>
 	</metadata>
 	<actors>
@@ -249,10 +249,12 @@
 			<input name="pointer">"/0/resource"</input>
 		</process>
 
+
+
 <!-- Use internal HAPI server to validate Bundle -->
 <!-- Base FHIR endpoint + profile (validate Bundle) -->
 		<assign to="base">"http://fhir-server:8080/fhir/"</assign>
-		<assign to="targetProfileUrl">"http://hl7.org/fhir/StructureDefinition/Bundle"</assign>
+		<assign to="targetProfileUrl">"http://lacpass.racsel.org/StructureDefinition/lac-bundle"</assign>
 		<!-- your profile -->
 <!-- Headers for FHIR JSON -->
 		<assign to="headers{Content-Type}">"application/fhir+json"</assign>
