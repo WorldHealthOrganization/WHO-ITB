@@ -279,7 +279,8 @@ Users are set up with temporary passwords, you need to change it immediately aft
 
 | Username | Password | Role | Purpose |
 |----------|----------|------|---------|
-| user@who.itb.test | change_this_password | Tester | Execute HCERT validation tests |
+| your email id| change_this_password | Tester | Execute validation tests |
+| user@who.itb.test | change_this_password | Tester | Execute validation tests |
 | admin@who.itb.test | change_this_password | Admin | Configure test suites and manage users |
 
 ## Architecture
