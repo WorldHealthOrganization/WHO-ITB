@@ -133,7 +133,7 @@
 <assign to="verifyParams{use_gdhcn}">true()</assign>
 <assign to="verifyParams{gdhcn_env}">"dev"</assign>
 <assign to="verifyParams{participant}">"-"</assign>
-<assign to="verifyParams{domain}">"DCC"</assign>
+<assign to="verifyParams{domain}">"PH4H"</assign>
 <assign to="verifyParams{usage}">"DSC"</assign>
 <assign to="verifyParams{verify_did_proof}">true()</assign>
 <assign to="verifyParams{allow_unverified_trustlist}">true()</assign>
@@ -336,11 +336,43 @@
       <input name="content">$fetchFhir{response}{body}</input>
       <input name="pointer">"/fhir"</input>
     </process>
-    <log>$fhirResource</log>
+    <!-- <log>$fhirResource</log> -->
     <process handler="JsonPointerProcessor" operation="process" output="firstResource">
       <input name="content">$fhirResource</input>
       <input name="pointer">"/0/resource"</input>
     </process>
+
+
+
+    <assign to="igHeaders{Content-Type}">"application/json"</assign>
+    <assign to="igHeaders{Accept}">"application/json"</assign>
+
+    <!-- IG #1 (JSON body with direct host URL) -->
+    <assign to="ig1Params{url}">"https://lacpass.racsel.org"</assign>
+    <assign to="ig1Params{target}">"fhir"</assign>
+    <assign to="ig1Template">'{"ig_url":"${url}", "target":"${target}"}'</assign>
+    <process handler="TemplateProcessor" operation="process" output="igBody1">
+      <input name="syntax">"freemarker"</input>
+      <input name="template">$ig1Template</input>
+      <input name="parameters">$ig1Params</input>
+    </process>
+
+    <!-- <log>$igBody1</log> -->
+
+    <send id="uploadIG1" desc="Upload LacPass IG to FHIR server" handler="HttpMessagingV2" from="User" to="FHIRValidator">
+      <input name="uri">"http://smart-helper:8000/upload_ig"</input>
+      <input name="method">"POST"</input>
+      <input name="headers">$igHeaders</input>
+      <input name="body">$igBody1</input>
+    </send>
+    <verify handler="NumberValidator" desc="IG #1 upload returns HTTP 200">
+      <input name="actualnumber">$uploadIG1{response}{status}</input>
+      <input name="expectednumber">"200"</input>
+    </verify>
+
+
+<log>"  === Validation === "</log>
+<log>$firstResource</log>
 
     <!-- ===================== 7) Validate Bundle ===================== -->
     <assign to="base">"http://fhir-server:8080/fhir/"</assign>

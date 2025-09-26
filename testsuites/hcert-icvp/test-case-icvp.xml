@@ -21,28 +21,17 @@
 
   <steps>
 
-    <!-- =========================================================================================
-         1) USER UPLOADS BARCODE IMAGE → /decode/image
-         TECHNICALS:
-           POST http://hcert-validator:8080/decode/image
-           Content-Type: multipart/form-data
-           Parts:
-             - image: (binary file)
-           Accept: application/json
-           Response JSON: { "qr_data": "HC1:..." }
-         ========================================================================================= -->
+    <!-- 1) USER UPLOADS BARCODE IMAGE → /decode/image -->
     <interact id="userFileUpload" desc="Upload barcode image (PNG/JPG)">
       <request desc="File to upload:" name="uploadedFile" inputType="UPLOAD" required="true"/>
     </interact>
 
-    <!-- Build multipart part named 'image' -->
     <assign to="imgPart{name}">"image"</assign>
     <assign to="imgPart{contentType}">"image/png"</assign>
     <assign to="imgPart{fileName}">"barcode.png"</assign>
     <assign to="imgPart{content}">$userFileUpload{uploadedFile}</assign>
     <assign to="imgParts" append="true">$imgPart</assign>
 
-    <!-- Ask JSON back so the response body is parsed as JSON -->
     <assign to="imgHeaders{Accept}">"application/json"</assign>
 
     <send id="decodeImage" desc="Decode QR image → qr_data" handler="HttpMessagingV2" from="User" to="HCertDecoder">
@@ -56,24 +45,15 @@
       <input name="expectednumber">"200"</input>
     </verify>
 
-    <!-- Extract qr_data (HC1:...) from response JSON -->
     <process handler="JsonPointerProcessor" operation="process" output="qrData">
       <input name="content">$decodeImage{response}{body}</input>
       <input name="pointer">"/qr_data"</input>
     </process>
 
-    <!-- =========================================================================================
-         2) DECODE HC1 → /decode/hcert
-         TECHNICALS:
-           POST http://hcert-validator:8080/decode/hcert
-           Content-Type: application/json
-           Body: {"qr_data":"<HC1...>"}           (use JSON-safe templating)
-           Accept: application/json
-           Response JSON: { cose: {...}, payload: {...}, hcert: {...} }
-         ========================================================================================= -->
-    <!-- Build {"qr_data":"<HC1...>"} safely -->
+    <!-- 2) DECODE HC1 → /decode/hcert -->
     <assign to="qrParam{value}">$qrData</assign>
-    <assign to="qrTemplate">'{"qr_data":"${value?json_string}"}'</assign>
+    <!-- Ask the decoder to include the _raw triplet so /cose/_raw exists -->
+    <assign to="qrTemplate">'{"qr_data":"${value?json_string}","include_raw":true}'</assign>
     <process handler="TemplateProcessor" operation="process" output="qrBody">
       <input name="syntax">"freemarker"</input>
       <input name="template">$qrTemplate</input>
@@ -94,7 +74,6 @@
       <input name="expectednumber">"200"</input>
     </verify>
 
-    <!-- Extract full CWT payload and inner content -->
     <process handler="JsonPointerProcessor" operation="process" output="cwtPayload">
       <input name="content">$decodeHC1{response}{body}</input>
       <input name="pointer">"/payload"</input>
@@ -104,18 +83,99 @@
       <input name="pointer">"/-260/-6"</input>
     </process>
 
-    <!-- =========================================================================================
-         3) INSTALL TWO IGs VIA SMART HELPER (UPDATED FOR NEW ENDPOINT)
-         TECHNICALS:
-           POST http://smart-helper:8000/upload_ig
-           Content-Type: application/json
-           Body: {"ig_url":"<ig url>", "host":"http://matchbox:8080/matchboxv3/fhir"}
-           Response JSON: {summary:{...}, results:[...]}
-         ========================================================================================= -->
+    <!-- 3.5) COSE SIGNATURE VERIFICATION (NON-BLOCKING) -->
+    <process handler="JsonPointerProcessor" operation="process" output="coseRaw">
+      <input name="content">$decodeHC1{response}{body}</input>
+      <input name="pointer">"/cose/_raw"</input>
+    </process>
+
+    <assign to="verifyParams{cose_raw}">$coseRaw</assign>
+    <assign to="verifyParams{use_gdhcn}">true()</assign>
+    <assign to="verifyParams{gdhcn_env}">"dev"</assign>
+    <assign to="verifyParams{participant}">"-"</assign>
+    <assign to="verifyParams{domain}">"PH4H"</assign>
+    <assign to="verifyParams{usage}">"DSC"</assign>
+    <assign to="verifyParams{verify_did_proof}">true()</assign>
+    <assign to="verifyParams{allow_unverified_trustlist}">true()</assign>
+    <assign to="verifyParams{allow_remote_contexts}">true()</assign>
+    <assign to="verifyParams{context_dir}">"contexts"</assign>
+
+    <assign to="verifyTpl">
+      '{"cose_raw":${cose_raw},"use_gdhcn":${use_gdhcn?c},"gdhcn_env":"${gdhcn_env}","participant":"${participant}","domain":"${domain}","usage":"${usage}","verify_did_proof":${verify_did_proof?c},"allow_unverified_trustlist":${allow_unverified_trustlist?c},"allow_remote_contexts":${allow_remote_contexts?c},"context_dir":"${context_dir}"}'
+    </assign>
+    <process handler="TemplateProcessor" operation="process" output="verifyBody">
+      <input name="syntax">"freemarker"</input>
+      <input name="template">$verifyTpl</input>
+      <input name="parameters">$verifyParams</input>
+    </process>
+
+    <assign to="verifyHeaders{Content-Type}">"application/json"</assign>
+    <assign to="verifyHeaders{Accept}">"application/json"</assign>
+    <send id="verifyCose" desc="Verify COSE signature (non-blocking)" handler="HttpMessagingV2" from="User" to="HCertDecoder">
+      <input name="uri">"http://hcert-validator:8080/verify/signature"</input>
+      <input name="method">"POST"</input>
+      <input name="headers">$verifyHeaders</input>
+      <input name="body">$verifyBody</input>
+    </send>
+
+    <assign to="sigHttp">$verifyCose{response}{status}</assign>
+
+    <process handler="JsonPointerProcessor" operation="process" output="sigValid">
+      <input name="content">$verifyCose{response}{body}</input>
+      <input name="pointer">"/valid"</input>
+    </process>
+    <process handler="JsonPointerProcessor" operation="process" output="sigKid">
+      <input name="content">$verifyCose{response}{body}</input>
+      <input name="pointer">"/verified_with_kid"</input>
+    </process>
+    <process handler="JsonPointerProcessor" operation="process" output="sigKidHdr">
+      <input name="content">$verifyCose{response}{body}</input>
+      <input name="pointer">"/kid_in_header"</input>
+    </process>
+    <process handler="JsonPointerProcessor" operation="process" output="sigMsg">
+      <input name="content">$verifyCose{response}{body}</input>
+      <input name="pointer">"/message"</input>
+    </process>
+    <process handler="JsonPointerProcessor" operation="process" output="sigTried">
+      <input name="content">$verifyCose{response}{body}</input>
+      <input name="pointer">"/candidates_tried"</input>
+    </process>
+
+    <!-- Wrap verifies so connect errors don't crash -->
+    <if>
+      <cond>string-length(normalize-space($sigHttp)) &gt; 0</cond>
+      <then>
+        <verify handler="NumberValidator" desc="COSE signature HTTP response check">
+          <input name="actualnumber">$sigHttp</input>
+          <input name="expectednumber">"200"</input>
+        </verify>
+        <verify handler="StringValidator" desc="COSE signature validity check">
+          <input name="actualstring">$sigValid</input>
+          <input name="expectedstring">"true"</input>
+        </verify>
+        <verify handler="ExpressionValidator" desc="COSE signature verification successful">
+          <input name="expression">($sigHttp = "200") and ($sigValid = "true")</input>
+        </verify>
+      </then>
+      <else>
+        <log>"⚠️ Signature verifier not reachable (no HTTP status). Continuing."</log>
+      </else>
+    </if>
+
+    <log>"=========================================="</log>
+    <log>"SIGNATURE VERIFICATION RESULTS:"</log>
+    <log>"  HTTP Status: " || $sigHttp || " (expected 200)"</log>
+    <log>"  Valid: " || $sigValid || " (expected true)"</log>
+    <log>"  KID in header: " || $sigKidHdr</log>
+    <log>"  KID verified with: " || $sigKid</log>
+    <log>"  Candidates tried: " || $sigTried</log>
+    <log>"  Message: " || $sigMsg</log>
+    <log>"=========================================="</log>
+
+    <!-- 3) INSTALL TWO IGs VIA SMART HELPER -->
     <assign to="igHeaders{Content-Type}">"application/json"</assign>
     <assign to="igHeaders{Accept}">"application/json"</assign>
 
-    <!-- IG #1 (JSON body with direct host URL) -->
     <assign to="ig1Params{url}">"https://worldhealthorganization.github.io/smart-trust-phw"</assign>
     <assign to="ig1Params{target}">"matchbox"</assign>
     <assign to="ig1Template">'{"ig_url":"${url}", "target":"${target}"}'</assign>
@@ -138,11 +198,9 @@
       <input name="expectednumber">"200"</input>
     </verify>
 
-    <!-- IG #2 (JSON body with direct host URL) -->
     <assign to="ig2Params{url}">"https://WorldHealthOrganization.github.io/smart-icvp"</assign>
     <assign to="ig2Params{target}">"matchbox"</assign>
     <assign to="ig2Template">'{"ig_url":"${url}", "target":"${target}"}'</assign>
-
     <process handler="TemplateProcessor" operation="process" output="igBody2">
       <input name="syntax">"freemarker"</input>
       <input name="template">$ig2Template</input>
@@ -162,17 +220,8 @@
       <input name="expectednumber">"200"</input>
     </verify>
 
-    <!-- =========================================================================================
-         4) TRANSFORM INNER CONTENT VIA SMART HELPER → /transform
-         TECHNICALS:
-           POST http://smart-helper:8000/transform?source=http://smart.who.int/icvp/StructureMap/ICVPClaimtoIPS
-           Content-Type: application/fhir+json
-           Body: <innerContent JSON>   (raw JSON, not double-encoded)
-           Response JSON: { ok: true, result: <FHIR Bundle>, ... }
-         ========================================================================================= -->
-    <!-- Render the innerContent JSON to a raw string body -->
+    <!-- 4) TRANSFORM VIA SMART HELPER → /transform -->
     <assign to="transformParams{obj}">$innerContent</assign>
-    <!-- IMPORTANT: Template must be a LITERAL string so TDL does not evaluate ${obj} itself -->
     <assign to="transformTemplate">'${obj}'</assign>
     <process handler="TemplateProcessor" operation="process" output="transformBody">
       <input name="syntax">"freemarker"</input>
@@ -180,7 +229,6 @@
       <input name="parameters">$transformParams</input>
     </process>
 
-    <!-- Headers and query parameters -->
     <assign to="xformHeaders{Content-Type}">"application/fhir+json"</assign>
     <assign to="xformHeaders{Accept}">"application/json"</assign>
     <assign to="xformQuery{source}">"http://smart.who.int/icvp/StructureMap/ICVPClaimtoIPS"</assign>
@@ -189,55 +237,49 @@
       <input name="uri">"http://smart-helper:8000/transform"</input>
       <input name="method">"POST"</input>
       <input name="headers">$xformHeaders</input>
-      <input name="parameters">$xformQuery</input>   <!-- lets the handler URL-encode 'source' -->
-      <input name="body">$transformBody</input>      <!-- raw JSON string -->
+      <input name="parameters">$xformQuery</input>
+      <input name="body">$transformBody</input>
     </send>
     <verify handler="NumberValidator" desc="Transform HTTP 200">
       <input name="actualnumber">$doTransform{response}{status}</input>
       <input name="expectednumber">"200"</input>
     </verify>
 
-    <!-- Extract the transformed FHIR Bundle from { ok, result, ... } -->
     <process handler="JsonPointerProcessor" operation="process" output="bundleResult">
       <input name="content">$doTransform{response}{body}</input>
       <input name="pointer">"/result"</input>
     </process>
 
-    <!-- =========================================================================================
-         5) VALIDATE THE BUNDLE VIA SMART HELPER → /validate
-         TECHNICALS:
-           POST http://smart-helper:8000/validate
-           Content-Type: application/json
-           Body: {"resource": <Bundle JSON>, "profile_url": "http://hl7.org/fhir/uv/ips/StructureDefinition/Bundle-uv-ips"}
-           Response JSON: { endpoint, status, ok, issues:[...], raw:OperationOutcome? }
-         ========================================================================================= -->
-<!-- Build validation request body (same pattern as transform) -->
-<!-- Build validation request body using concatenation -->
-<assign to="valParams{obj}">$bundleResult</assign>
-<assign to="valResourceTemplate">'${obj}'</assign>
-<process handler="TemplateProcessor" operation="process" output="valResourceBody">
-  <input name="syntax">"freemarker"</input>
-  <input name="template">$valResourceTemplate</input>
-  <input name="parameters">$valParams</input>
-</process>
+    <!-- 5) VALIDATE THE BUNDLE VIA SMART HELPER → /validate -->
+    <assign to="valParams{obj}">$bundleResult</assign>
+    <assign to="valResourceTemplate">'${obj}'</assign>
+    <process handler="TemplateProcessor" operation="process" output="valResourceBody">
+      <input name="syntax">"freemarker"</input>
+      <input name="template">$valResourceTemplate</input>
+      <input name="parameters">$valParams</input>
+    </process>
 
-<!-- Build the wrapper JSON using string concatenation -->
-<assign to="validateBody">concat('{"resource": ', $valResourceBody, ', "profile_url": "http://smart.who.int/icvp/StructureDefinition/Bundle-uv-ips-ICVP", "host": "http://fhir-server:8080/fhir"}')</assign>
+    <!-- Centralize the FHIR host here -->
+    <assign to="fhirHost">"http://fhir-server:8080/fhir"</assign>
+    <!-- If needed, swap to: "http://matchbox:8080/matchboxv3/fhir" or "http://fhir:8080/fhir" -->
 
-<log>concat('Validation body: ', $validateBody)</log>
+    <assign to="validateBody">
+      concat('{"resource": ', $valResourceBody, ', "profile_url": "http://smart.who.int/icvp/StructureDefinition/Bundle-uv-ips-ICVP", "host": "', $fhirHost, '"}')
+    </assign>
 
-<send id="validateIPS" desc="Validate IPS Bundle (via SMART Helper)" handler="HttpMessagingV2" from="User" to="FHIRValidator">
-  <input name="uri">"http://smart-helper:8000/validate"</input>
-  <input name="method">"POST"</input>
-  <input name="headers">$jsonHeaders</input>
-  <input name="body">$validateBody</input>
-</send>
+    <log>concat('Validation body: ', $validateBody)</log>
+
+    <send id="validateIPS" desc="Validate IPS Bundle (via SMART Helper)" handler="HttpMessagingV2" from="User" to="FHIRValidator">
+      <input name="uri">"http://smart-helper:8000/validate"</input>
+      <input name="method">"POST"</input>
+      <input name="headers">$jsonHeaders</input>
+      <input name="body">$validateBody</input>
+    </send>
     <verify handler="NumberValidator" desc="Validation HTTP 200">
       <input name="actualnumber">$validateIPS{response}{status}</input>
       <input name="expectednumber">"200"</input>
     </verify>
 
-    <!-- Optional: Extract issues array to inspect results -->
     <process handler="JsonPointerProcessor" operation="process" output="validationIssues">
       <input name="content">$validateIPS{response}{body}</input>
       <input name="pointer">"/issues"</input>

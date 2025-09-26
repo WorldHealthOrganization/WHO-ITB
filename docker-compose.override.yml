@@ -37,10 +37,10 @@ services:
       - hapi.fhir.implementationguides.fhir_r4_core.name=hl7.fhir.r4.core
       - hapi.fhir.implementationguides.fhir_r4_core.version=4.0.1
       - hapi.fhir.implementationguides.fhir_r4_core.url=http://hl7.org/fhir/R4/hl7.fhir.r4.core.tgz
-      - hapi.fhir.implementationguides.racsel.name=lacpass.racsel.org
-      - hapi.fhir.implementationguides.racsel.version=0.1.0
-      - hapi.fhir.implementationguides.racsel.url=https://lacpass.racsel.org/package.tgz
 
+      # - hapi.fhir.implementationguides.racsel.name=lacpass.racsel.org
+      # - hapi.fhir.implementationguides.racsel.version=0.1.0
+      # - hapi.fhir.implementationguides.racsel.url=https://lacpass.racsel.org/package.tgz
 
       - hapi.fhir.ig_runtime_upload_enabled=true
       - hapi.fhir.custom_content_path=/custom
