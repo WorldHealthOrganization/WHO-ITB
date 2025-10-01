@@ -29,16 +29,22 @@
     <gitb:actor id="FHIRValidator"/>
   </actors>
 
+  <variables>
+    <var name="pinValue" type="string">
+      <value>""</value>
+    </var>
+    <var name="uploadedFile" type="binary"/>
+  </variables>
+
   <steps>
 
     <!-- 0.1: Request the user to upload a file -->
     <interact id="userFileUpload" desc="Upload file">
-      <request desc="Upload a QRCode:" name="uploadedFile" inputType="UPLOAD" required="true"/>
+      <request desc="Upload a QRCode:" name="uploadedFile" inputType="UPLOAD" required="true">$uploadedFile</request>
     </interact>
 
     <!-- 0.2. Ask the user for the PIN -->
-    <assign to="pinValue">""</assign>
-    <interact id="enterPin" inputTitle="Authorize link" desc="Enter the PIN provided by the service">
+    <interact id="enterPin" inputTitle="Authorize link" desc="Enter the PIN for retrieving the content">
       <request desc="Enter PIN:">$pinValue</request>
     </interact>
 
@@ -48,7 +54,7 @@
     <assign to="imgPart{name}">"image"</assign>
     <assign to="imgPart{contentType}">"image/png"</assign>
     <assign to="imgPart{fileName}">"upload.png"</assign>
-    <assign to="imgPart{content}">$userFileUpload{uploadedFile}</assign>
+    <assign to="imgPart{content}">$uploadedFile</assign>
     <assign to="sendParts" append="true">$imgPart</assign>
     <assign to="reqHeaders{Accept}">"application/json"</assign>
 
