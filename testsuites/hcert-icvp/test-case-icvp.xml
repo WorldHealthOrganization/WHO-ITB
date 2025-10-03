@@ -198,7 +198,7 @@
       <input name="expectednumber">"200"</input>
     </verify>
 
-    <assign to="ig2Params{url}">"https://WorldHealthOrganization.github.io/smart-icvp"</assign>
+    <assign to="ig2Params{url}">"https://smart.who.int/pcmt"</assign>
     <assign to="ig2Params{target}">"matchbox"</assign>
     <assign to="ig2Template">'{"ig_url":"${url}", "target":"${target}"}'</assign>
     <process handler="TemplateProcessor" operation="process" output="igBody2">
@@ -219,6 +219,39 @@
       <input name="actualnumber">$uploadIG2{response}{status}</input>
       <input name="expectednumber">"200"</input>
     </verify>
+
+
+
+    <assign to="ig3Params{url}">"https://WorldHealthOrganization.github.io/smart-icvp"</assign>
+    <assign to="ig3Params{target}">"matchbox"</assign>
+    <assign to="ig3Template">'{"ig_url":"${url}", "target":"${target}"}'</assign>
+    <process handler="TemplateProcessor" operation="process" output="igBody3">
+      <input name="syntax">"freemarker"</input>
+      <input name="template">$ig3Template</input>
+      <input name="parameters">$ig3Params</input>
+    </process>
+
+    <log>$igBody3</log>
+
+    <send id="uploadIG3" desc="Upload IG #3 to Matchbox" handler="HttpMessagingV2" from="User" to="SMARTHelper">
+      <input name="uri">"http://smart-helper:8000/upload_ig"</input>
+      <input name="method">"POST"</input>
+      <input name="headers">$igHeaders</input>
+      <input name="body">$igBody3</input>
+    </send>
+    <verify handler="NumberValidator" desc="IG #3 upload returns HTTP 200">
+      <input name="actualnumber">$uploadIG3{response}{status}</input>
+      <input name="expectednumber">"200"</input>
+    </verify>
+
+
+
+
+
+
+
+
+
 
     <!-- 4) TRANSFORM VIA SMART HELPER → /transform -->
     <assign to="transformParams{obj}">$innerContent</assign>
