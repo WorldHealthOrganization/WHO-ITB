@@ -185,7 +185,7 @@
       <input name="parameters">$ig1Params</input>
     </process>
     <log>$igBody1</log>
-    <send id="uploadIG1" desc="Upload IG #1 to Matchbox" handler="HttpMessagingV2" from="User" to="SMARTHelper">
+    <send id="uploadIG1" desc="Upload IG #1 (TRUST) to Matchbox" handler="HttpMessagingV2" from="User" to="SMARTHelper">
       <input name="uri">"http://smart-helper:8000/upload_ig"</input>
       <input name="method">"POST"</input>
       <input name="headers">$igHeaders</input>
@@ -205,7 +205,7 @@
       <input name="parameters">$ig2Params</input>
     </process>
     <log>$igBody2</log>
-    <send id="uploadIG2" desc="Upload IG #2 to Matchbox" handler="HttpMessagingV2" from="User" to="SMARTHelper">
+    <send id="uploadIG2" desc="Upload IG #2 (PCMT) to Matchbox" handler="HttpMessagingV2" from="User" to="SMARTHelper">
       <input name="uri">"http://smart-helper:8000/upload_ig"</input>
       <input name="method">"POST"</input>
       <input name="headers">$igHeaders</input>
@@ -225,7 +225,7 @@
       <input name="parameters">$ig3Params</input>
     </process>
     <log>$igBody3</log>
-    <send id="uploadIG3" desc="Upload IG #3 to Matchbox" handler="HttpMessagingV2" from="User" to="SMARTHelper">
+    <send id="uploadIG3" desc="Upload IG #3 (PCMT-VAXPREQUAL) to Matchbox" handler="HttpMessagingV2" from="User" to="SMARTHelper">
       <input name="uri">"http://smart-helper:8000/upload_ig"</input>
       <input name="method">"POST"</input>
       <input name="headers">$igHeaders</input>
@@ -245,7 +245,7 @@
       <input name="parameters">$ig4Params</input>
     </process>
     <log>$igBody4</log>
-    <send id="uploadIG4" desc="Upload IG #4 to Matchbox" handler="HttpMessagingV2" from="User" to="SMARTHelper">
+    <send id="uploadIG4" desc="Upload IG #4 (TRUST-PHW) to Matchbox" handler="HttpMessagingV2" from="User" to="SMARTHelper">
       <input name="uri">"http://smart-helper:8000/upload_ig"</input>
       <input name="method">"POST"</input>
       <input name="headers">$igHeaders</input>
@@ -256,7 +256,7 @@
       <input name="expectednumber">"200"</input>
     </verify>
 
-    <assign to="ig5Params{url}">"https://WorldHealthOrganization.github.io/smart-icvp/branches/SMUpdates"</assign>
+    <assign to="ig5Params{url}">"https://WorldHealthOrganization.github.io/smart-icvp"</assign>
     <assign to="ig5Params{target}">"matchbox"</assign>
     <assign to="ig5Template">'{"ig_url":"${url}", "target":"${target}"}'</assign>
     <process handler="TemplateProcessor" operation="process" output="igBody5">
@@ -265,7 +265,7 @@
       <input name="parameters">$ig5Params</input>
     </process>
     <log>$igBody5</log>
-    <send id="uploadIG5" desc="Upload IG #5 to Matchbox" handler="HttpMessagingV2" from="User" to="SMARTHelper">
+    <send id="uploadIG5" desc="Upload IG #5 (ICVP) to Matchbox" handler="HttpMessagingV2" from="User" to="SMARTHelper">
       <input name="uri">"http://smart-helper:8000/upload_ig"</input>
       <input name="method">"POST"</input>
       <input name="headers">$igHeaders</input>
