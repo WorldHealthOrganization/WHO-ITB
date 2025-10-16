@@ -602,23 +602,36 @@ def validate_raw(req: ValidateRequest):
     """
     host = (req.host or DEFAULT_FHIR_HOST).rstrip("/")
     token = req.token or DEFAULT_FHIR_TOKEN
-    
+
     try:
         # Get resource type for resource-specific validation endpoint
         resource_type = req.resource.get("resourceType", "Resource")
-        url = host.rstrip("/") + f"/{resource_type}/$validate"
-        
-        resp = fhir_request("POST", url, token, json_body=req.resource,
-                            content_type="application/fhir+json", accept="application/fhir+json",
-                            params={"profile": req.profile_url})
-        
+        url = f"{host}/{resource_type}/$validate"
+
+        # Build query parameters for the operation
+        params = {
+            "profile": req.profile_url,
+            "mode": "create",
+            "unknown-codesystems-cause-errors": "true"
+        }
+
+        resp = fhir_request(
+            "POST",
+            url,
+            token,
+            json_body=req.resource,
+            content_type="application/fhir+json",
+            accept="application/fhir+json",
+            params=params
+        )
+
         # Return exactly what the FHIR server returned
         try:
             return resp.json()
         except Exception:
             # If not JSON, return as text
             return {"text": resp.text, "status": resp.status_code}
-            
+
     except Exception as e:
         # Only handle connection/server errors
         raise HTTPException(status_code=502, detail=f"FHIR server error: {str(e)}")
