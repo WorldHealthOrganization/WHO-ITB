@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   # GDHCN Validator Service for HCERT testing
   hcert-validator:
