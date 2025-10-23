@@ -45,7 +45,7 @@
 
     <!-- 0.2. Ask the user for the PIN -->
     <interact id="enterPin" inputTitle="Authorize link" desc="Enter the PIN for retrieving the content">
-      <request desc="Enter PIN:">$pinValue</request>
+      <request desc="Enter PIN:" required="false">$pinValue</request>
     </interact>
 
     <!-- ===================== 1) Decode QRCode ===================== -->
@@ -283,23 +283,54 @@
       <input name="pointer">"/url"</input>
     </process>
 
-    <assign to="tpl3{url}">$refUrlOut</assign>
-    <assign to="tpl3{pin}">$pinValue</assign>
-    <assign to="tplRef3">'{"url":"${url}","pin":"${pin}"}'</assign>
+<!-- Extract short-link URL -->
+<process handler="JsonPointerProcessor" operation="process" output="refUrlOut">
+  <input name="content">$extractRef{response}{body}</input>
+  <input name="pointer">"/url"</input>
+</process>
+
+<!-- Common params -->
+<assign to="tpl3{url}">$refUrlOut</assign>
+<assign to="tpl3{pin}">$pinValue</assign>
+
+<!-- Two templates: one with "pin" as string, one without -->
+<assign to="tplWithPin">
+'{"url":"${url?string?replace("\\","\\\\")?replace("\"","\\\"")}","pin":"${pin?string?trim?replace("\\","\\\\")?replace("\"","\\\"")}"}'
+</assign>
+<assign to="tplNoPin">
+'{"url":"${url?string?replace("\\","\\\\")?replace("\"","\\\"")}"}'
+</assign>
+
+<!-- Use the appropriate template depending on whether pinValue has content -->
+<if>
+  <cond>string-length(normalize-space($pinValue)) &gt; 0</cond>
+  <then>
     <process handler="TemplateProcessor" operation="process" output="authBody">
       <input name="syntax">"freemarker"</input>
-      <input name="template">$tplRef3</input>
+      <input name="template">$tplWithPin</input>
       <input name="parameters">$tpl3</input>
     </process>
+  </then>
+  <else>
+    <process handler="TemplateProcessor" operation="process" output="authBody">
+      <input name="syntax">"freemarker"</input>
+      <input name="template">$tplNoPin</input>
+      <input name="parameters">$tpl3</input>
+    </process>
+  </else>
+</if>
 
-    <assign to="headers{Content-Type}">"application/json"</assign>
-    <send id="authorizeLink" desc="Authorize short link" handler="HttpMessagingV2" from="User" to="VHLResponder">
-      <input name="uri">"http://hcert-validator:8080/shlink/authorize"</input>
-      <input name="method">"POST"</input>
-      <input name="headers">$headers</input>
-      <input name="body">$authBody</input>
-    </send>
+<!-- Send authorize request -->
+<assign to="headers{Content-Type}">"application/json"</assign>
+<send id="authorizeLink" desc="Authorize short link" handler="HttpMessagingV2" from="User" to="VHLResponder">
+  <input name="uri">"http://hcert-validator:8080/shlink/authorize"</input>
+  <input name="method">"POST"</input>
+  <input name="headers">$headers</input>
+  <input name="body">$authBody</input>
+</send>
 
+<!-- (optional but handy) -->
+<log>$authBody</log>
 
 
     <verify handler="NumberValidator" desc="HTTP 200 OK">

@@ -33,6 +33,7 @@ from jwcrypto import jwk, jws
 from PIL import Image
 from pyld import jsonld
 from pyzbar import pyzbar
+from urllib.parse import urlencode
 
 SERVICE_NAME = "GDHCN HCERT & SHLink Validator"
 SERVICE_VERSION = os.getenv("SERVICE_VERSION", "2.0.0")
@@ -726,53 +727,84 @@ def extract_reference():
 
 @app.route('/shlink/authorize', methods=['POST'])
 def shlink_authorize():
-    """Authorize SHLink with PIN."""
+    """Authorize SHLink optionally with PIN."""
     try:
-        data = request.get_json()
-        if not data or 'url' not in data or 'pin' not in data:
-            return jsonify({'error': 'missing_fields', 'details': 'url and pin fields required'}), 400
-        
+        data = request.get_json(silent=True) or {}
+
+        # URL is mandatory, pin optional
+        if 'url' not in data:
+            return jsonify({'error': 'missing_fields', 'details': 'url field required', "request": data}), 400
+
         url = data['url']
-        pin = data['pin']
-        
+        pin = str(data.get('pin') or '').strip()
+
         manifest = None
-        
-        # Try different PIN submission methods
-        methods = [
-            ('JSON POST', lambda: requests.post(url, json={'passcode': str(pin)}, headers={'Content-Type': 'application/json'}, allow_redirects=True, timeout=30)),
-            ('Form POST', lambda: requests.post(url, data={'passcode': str(pin)}, headers={'Content-Type': 'application/x-www-form-urlencoded'}, allow_redirects=True, timeout=30)),
-            ('Query param', lambda: requests.get(f"{url}{'&' if '?' in url else '?'}passcode={pin}", allow_redirects=True, timeout=30))
-        ]
-        
+
+        # If PIN is provided → try all auth methods
+        if pin:
+            methods = [
+                ('JSON POST', lambda: requests.post(
+                    url,
+                    json={'passcode': pin},
+                    headers={'Content-Type': 'application/json'},
+                    allow_redirects=True,
+                    timeout=30,
+                )),
+                ('Form POST', lambda: requests.post(
+                    url,
+                    data={'passcode': pin},
+                    headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                    allow_redirects=True,
+                    timeout=30,
+                )),
+                ('Query param', lambda: requests.get(
+                    f"{url}{'&' if '?' in url else '?'}{urlencode({'passcode': pin})}",
+                    allow_redirects=True,
+                    timeout=30,
+                )),
+            ]
+        else:
+            # No PIN → single GET attempt
+                methods = [
+                    ('Empty JSON POST', lambda: requests.post(
+                        url,
+                        json={},  # <— empty body
+                        headers={'Content-Type': 'application/json'},
+                        allow_redirects=True,
+                        timeout=30,
+                    )),
+                ]
+
+        # Attempt each method
         for method_name, method_func in methods:
             try:
                 response = method_func()
                 if response.status_code == 200:
                     try:
                         manifest = response.json()
-                    except:
-                        manifest = {'raw': response.text, 'content_type': response.headers.get('Content-Type', 'text/plain')}
+                    except Exception:
+                        manifest = {
+                            'raw': response.text,
+                            'content_type': response.headers.get('Content-Type', 'text/plain'),
+                        }
                     break
             except Exception as e:
                 logger.debug(f"{method_name} failed: {e}")
-        
+
         if not manifest:
             return jsonify({
                 'error': 'authorization_failed',
-                'details': 'Could not authorize with provided PIN'
+                'details': 'Could not authorize (PIN may be invalid or not required)',
             }), 400
-        
+
         if isinstance(manifest, dict) and 'raw' in manifest:
             return jsonify(manifest)
         else:
             return jsonify({'manifest': manifest})
-        
+
     except Exception as e:
         logger.exception("Error authorizing SHLink")
-        return jsonify({
-            'error': 'authorization_error',
-            'details': str(e)
-        }), 500
+        return jsonify({'error': 'authorization_error', 'details': str(e)}), 500
 
 @app.route('/shlink/fetch-fhir', methods=['POST'])
 def shlink_fetch_fhir():
@@ -1403,7 +1435,7 @@ OPENAPI_SPEC = {
                                     "url": {"type": "string", "format": "uri"},
                                     "pin": {"type": "string"}
                                 },
-                                "required": ["url", "pin"]
+                                "required": ["url"]
                             }
                         }
                     }

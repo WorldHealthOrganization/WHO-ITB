@@ -52,7 +52,6 @@
 
     <!-- 2) DECODE HC1 → /decode/hcert -->
     <assign to="qrParam{value}">$qrData</assign>
-    <!-- Ask the decoder to include the _raw triplet so /cose/_raw exists -->
     <assign to="qrTemplate">'{"qr_data":"${value?json_string}","include_raw":true}'</assign>
     <process handler="TemplateProcessor" operation="process" output="qrBody">
       <input name="syntax">"freemarker"</input>
@@ -74,6 +73,7 @@
       <input name="expectednumber">"200"</input>
     </verify>
 
+    <!-- Pull out payload (has -260/-6 and also "1": "XXK") -->
     <process handler="JsonPointerProcessor" operation="process" output="cwtPayload">
       <input name="content">$decodeHC1{response}{body}</input>
       <input name="pointer">"/payload"</input>
@@ -172,11 +172,11 @@
     <log>"  Message: " || $sigMsg</log>
     <log>"=========================================="</log>
 
-    <!-- 3) INSTALL TWO IGs VIA SMART HELPER -->
+    <!-- 3) INSTALL IGs VIA SMART HELPER -->
     <assign to="igHeaders{Content-Type}">"application/json"</assign>
     <assign to="igHeaders{Accept}">"application/json"</assign>
 
-    <assign to="ig1Params{url}">"https://worldhealthorganization.github.io/smart-trust-phw"</assign>
+    <assign to="ig1Params{url}">"https://worldhealthorganization.github.io/smart-trust"</assign>
     <assign to="ig1Params{target}">"matchbox"</assign>
     <assign to="ig1Template">'{"ig_url":"${url}", "target":"${target}"}'</assign>
     <process handler="TemplateProcessor" operation="process" output="igBody1">
@@ -184,10 +184,8 @@
       <input name="template">$ig1Template</input>
       <input name="parameters">$ig1Params</input>
     </process>
-
     <log>$igBody1</log>
-
-    <send id="uploadIG1" desc="Upload IG #1 to Matchbox" handler="HttpMessagingV2" from="User" to="SMARTHelper">
+    <send id="uploadIG1" desc="Upload IG #1 (TRUST) to Matchbox" handler="HttpMessagingV2" from="User" to="SMARTHelper">
       <input name="uri">"http://smart-helper:8000/upload_ig"</input>
       <input name="method">"POST"</input>
       <input name="headers">$igHeaders</input>
@@ -198,7 +196,7 @@
       <input name="expectednumber">"200"</input>
     </verify>
 
-    <assign to="ig2Params{url}">"https://WorldHealthOrganization.github.io/smart-icvp"</assign>
+    <assign to="ig2Params{url}">"https://smart.who.int/pcmt"</assign>
     <assign to="ig2Params{target}">"matchbox"</assign>
     <assign to="ig2Template">'{"ig_url":"${url}", "target":"${target}"}'</assign>
     <process handler="TemplateProcessor" operation="process" output="igBody2">
@@ -206,10 +204,8 @@
       <input name="template">$ig2Template</input>
       <input name="parameters">$ig2Params</input>
     </process>
-
     <log>$igBody2</log>
-
-    <send id="uploadIG2" desc="Upload IG #2 to Matchbox" handler="HttpMessagingV2" from="User" to="SMARTHelper">
+    <send id="uploadIG2" desc="Upload IG #2 (PCMT) to Matchbox" handler="HttpMessagingV2" from="User" to="SMARTHelper">
       <input name="uri">"http://smart-helper:8000/upload_ig"</input>
       <input name="method">"POST"</input>
       <input name="headers">$igHeaders</input>
@@ -217,6 +213,66 @@
     </send>
     <verify handler="NumberValidator" desc="IG #2 upload returns HTTP 200">
       <input name="actualnumber">$uploadIG2{response}{status}</input>
+      <input name="expectednumber">"200"</input>
+    </verify>
+
+    <assign to="ig3Params{url}">"https://smart.who.int/pcmt-vaxprequal"</assign>
+    <assign to="ig3Params{target}">"matchbox"</assign>
+    <assign to="ig3Template">'{"ig_url":"${url}", "target":"${target}"}'</assign>
+    <process handler="TemplateProcessor" operation="process" output="igBody3">
+      <input name="syntax">"freemarker"</input>
+      <input name="template">$ig3Template</input>
+      <input name="parameters">$ig3Params</input>
+    </process>
+    <log>$igBody3</log>
+    <send id="uploadIG3" desc="Upload IG #3 (PCMT-VAXPREQUAL) to Matchbox" handler="HttpMessagingV2" from="User" to="SMARTHelper">
+      <input name="uri">"http://smart-helper:8000/upload_ig"</input>
+      <input name="method">"POST"</input>
+      <input name="headers">$igHeaders</input>
+      <input name="body">$igBody3</input>
+    </send>
+    <verify handler="NumberValidator" desc="IG #3 upload returns HTTP 200">
+      <input name="actualnumber">$uploadIG3{response}{status}</input>
+      <input name="expectednumber">"200"</input>
+    </verify>
+
+    <assign to="ig4Params{url}">"https://worldhealthorganization.github.io/smart-trust-phw"</assign>
+    <assign to="ig4Params{target}">"matchbox"</assign>
+    <assign to="ig4Template">'{"ig_url":"${url}", "target":"${target}"}'</assign>
+    <process handler="TemplateProcessor" operation="process" output="igBody4">
+      <input name="syntax">"freemarker"</input>
+      <input name="template">$ig4Template</input>
+      <input name="parameters">$ig4Params</input>
+    </process>
+    <log>$igBody4</log>
+    <send id="uploadIG4" desc="Upload IG #4 (TRUST-PHW) to Matchbox" handler="HttpMessagingV2" from="User" to="SMARTHelper">
+      <input name="uri">"http://smart-helper:8000/upload_ig"</input>
+      <input name="method">"POST"</input>
+      <input name="headers">$igHeaders</input>
+      <input name="body">$igBody4</input>
+    </send>
+    <verify handler="NumberValidator" desc="IG #4 upload returns HTTP 200">
+      <input name="actualnumber">$uploadIG4{response}{status}</input>
+      <input name="expectednumber">"200"</input>
+    </verify>
+
+    <assign to="ig5Params{url}">"https://WorldHealthOrganization.github.io/smart-icvp"</assign>
+    <assign to="ig5Params{target}">"matchbox"</assign>
+    <assign to="ig5Template">'{"ig_url":"${url}", "target":"${target}"}'</assign>
+    <process handler="TemplateProcessor" operation="process" output="igBody5">
+      <input name="syntax">"freemarker"</input>
+      <input name="template">$ig5Template</input>
+      <input name="parameters">$ig5Params</input>
+    </process>
+    <log>$igBody5</log>
+    <send id="uploadIG5" desc="Upload IG #5 (ICVP) to Matchbox" handler="HttpMessagingV2" from="User" to="SMARTHelper">
+      <input name="uri">"http://smart-helper:8000/upload_ig"</input>
+      <input name="method">"POST"</input>
+      <input name="headers">$igHeaders</input>
+      <input name="body">$igBody5</input>
+    </send>
+    <verify handler="NumberValidator" desc="IG #5 upload returns HTTP 200">
+      <input name="actualnumber">$uploadIG5{response}{status}</input>
       <input name="expectednumber">"200"</input>
     </verify>
 
@@ -250,8 +306,188 @@
       <input name="pointer">"/result"</input>
     </process>
 
+    <!-- TIMESTAMP GENERATION -->
+    <process output="currentTimestamp" handler="TokenGenerator" operation="timestamp">
+      <input name="format">"yyyy-MM-dd'T'HH:mm:ss.SSSXXX"</input>
+    </process>
+
+    <!-- Ensure first entry is a Composition -->
+    <process handler="JsonPointerProcessor" operation="process" output="firstResourceType">
+      <input name="content">$bundleResult</input>
+      <input name="pointer">"/entry/0/resource/resourceType"</input>
+    </process>
+    <verify handler="StringValidator" desc="First bundle resource is Composition">
+      <input name="actualstring">$firstResourceType</input>
+      <input name="expectedstring">"Composition"</input>
+    </verify>
+
+    <!-- Stamp/insert Composition.date -->
+    <process handler="JsonPointerProcessor" operation="process" output="compDate">
+      <input name="content">$bundleResult</input>
+      <input name="pointer">"/entry/0/resource/date"</input>
+    </process>
+
+    <assign to="stampParams{bundle}">$bundleResult</assign>
+    <assign to="stampParams{ts}">$currentTimestamp</assign>
+
+    <assign to="replaceDateInBundleTemplate">
+      '${bundle?replace("(?s)(\\\"entry\\\"\\s*:\\s*\\[\\s*\\{.*?\\\"resource\\\"\\s*:\\s*\\{.*?\\\"resourceType\\\"\\s*:\\s*\\\"Composition\\\".*?\\\"date\\\"\\s*:\\s*\\\")[^\"]*(\\\")", "$1${ts}$2", "r")}'
+    </assign>
+    <assign to="insertDateInBundleTemplate">
+      '${bundle?replace("(?s)(\\\"entry\\\"\\s*:\\s*\\[\\s*\\{.*?\\\"resource\\\"\\s*:\\s*\\{\\s*\\\"resourceType\\\"\\s*:\\s*\\\"Composition\\\")", "$1, \\\"date\\\":\\\"${ts}\\\"", "r")}'
+    </assign>
+
+    <if>
+      <cond>string-length(normalize-space($compDate)) &gt; 0</cond>
+      <then>
+        <process handler="TemplateProcessor" operation="process" output="bundleStamped">
+          <input name="syntax">"freemarker"</input>
+          <input name="template">$replaceDateInBundleTemplate</input>
+          <input name="parameters">$stampParams</input>
+        </process>
+      </then>
+      <else>
+        <process handler="TemplateProcessor" operation="process" output="bundleStamped">
+          <input name="syntax">"freemarker"</input>
+          <input name="template">$insertDateInBundleTemplate</input>
+          <input name="parameters">$stampParams</input>
+        </process>
+      </else>
+    </if>
+
+    <!-- Proof: Composition.date exists -->
+    <process handler="JsonPointerProcessor" operation="process" output="compDateAfter">
+      <input name="content">$bundleStamped</input>
+      <input name="pointer">"/entry/0/resource/date"</input>
+    </process>
+    <verify handler="ExpressionValidator" desc="Composition.date was set on the bundle">
+      <input name="expression">string-length(normalize-space($compDateAfter)) &gt; 0</input>
+    </verify>
+    <log>concat("Composition.date AFTER: ", $compDateAfter)</log>
+
+    <!-- Inject/replace Composition.author from HC1 payload "1" (e.g., XXK) -->
+    <process handler="JsonPointerProcessor" operation="process" output="issuerCode">
+      <input name="content">$cwtPayload</input>
+      <input name="pointer">"/1"</input>
+    </process>
+
+    <process handler="JsonPointerProcessor" operation="process" output="compAuthorBefore">
+      <input name="content">$bundleStamped</input>
+      <input name="pointer">"/entry/0/resource/author"</input>
+    </process>
+
+    <assign to="authorParams{bundle}">$bundleStamped</assign>
+    <assign to="authorParams{issuer}">$issuerCode</assign>
+
+    <!-- Replace existing author array -->
+    <assign to="replaceAuthorInBundleTemplate">
+      '${bundle?replace("(?s)(\\\"entry\\\"\\s*:\\s*\\[\\s*\\{.*?\\\"resource\\\"\\s*:\\s*\\{.*?\\\"resourceType\\\"\\s*:\\s*\\\"Composition\\\".*?\\\"author\\\"\\s*:\\s*)\\[[^\\]]*\\]", "$1[{\\\"identifier\\\":{\\\"system\\\":\\\"urn:example:issuer\\\",\\\"value\\\":\\\"${issuer}\\\"}}]", "r")}'
+    </assign>
+
+    <!-- Insert author after date (preferred) -->
+    <assign to="insertAuthorAfterDateTemplate">
+      '${bundle?replace("(?s)(\\\"entry\\\"\\s*:\\s*\\[\\s*\\{.*?\\\"resource\\\"\\s*:\\s*\\{.*?\\\"resourceType\\\"\\s*:\\s*\\\"Composition\\\".*?\\\"date\\\"\\s*:\\s*\\\"[^\"]*\\\")", "$1, \\\"author\\\":[{\\\"identifier\\\":{\\\"system\\\":\\\"urn:example:issuer\\\",\\\"value\\\":\\\"${issuer}\\\"}}]", "r")}'
+    </assign>
+
+    <!-- Fallback: insert after resourceType -->
+    <assign to="insertAuthorAfterResourceTypeTemplate">
+      '${bundle?replace("(?s)(\\\"entry\\\"\\s*:\\s*\\[\\s*\\{.*?\\\"resource\\\"\\s*:\\s*\\{\\s*\\\"resourceType\\\"\\s*:\\s*\\\"Composition\\\")", "$1, \\\"author\\\":[{\\\"identifier\\\":{\\\"system\\\":\\\"urn:example:issuer\\\",\\\"value\\\":\\\"${issuer}\\\"}}]", "r")}'
+    </assign>
+
+    <if>
+      <cond>string-length(normalize-space($compAuthorBefore)) &gt; 0</cond>
+      <then>
+        <process handler="TemplateProcessor" operation="process" output="bundleStamped">
+          <input name="syntax">"freemarker"</input>
+          <input name="template">$replaceAuthorInBundleTemplate</input>
+          <input name="parameters">$authorParams</input>
+        </process>
+      </then>
+      <else>
+        <process handler="TemplateProcessor" operation="process" output="bundleStampedTryAuthor">
+          <input name="syntax">"freemarker"</input>
+          <input name="template">$insertAuthorAfterDateTemplate</input>
+          <input name="parameters">$authorParams</input>
+        </process>
+
+        <process handler="JsonPointerProcessor" operation="process" output="compAuthorAfterTry">
+          <input name="content">$bundleStampedTryAuthor</input>
+          <input name="pointer">"/entry/0/resource/author/0/identifier/value"</input>
+        </process>
+
+        <if>
+          <cond>string-length(normalize-space($compAuthorAfterTry)) &gt; 0</cond>
+          <then>
+            <assign to="bundleStamped">$bundleStampedTryAuthor</assign>
+          </then>
+          <else>
+            <process handler="TemplateProcessor" operation="process" output="bundleStamped">
+              <input name="syntax">"freemarker"</input>
+              <input name="template">$insertAuthorAfterResourceTypeTemplate</input>
+              <input name="parameters">$authorParams</input>
+            </process>
+          </else>
+        </if>
+      </else>
+    </if>
+
+    <!-- Proof: author identifier value matches issuer -->
+    <process handler="JsonPointerProcessor" operation="process" output="compAuthorValue">
+      <input name="content">$bundleStamped</input>
+      <input name="pointer">"/entry/0/resource/author/0/identifier/value"</input>
+    </process>
+    <verify handler="StringValidator" desc="Composition.author identifier is set from payload/1">
+      <input name="actualstring">$compAuthorValue</input>
+      <input name="expectedstring">$issuerCode</input>
+    </verify>
+    <log>concat("Composition.author.identifier.value: ", $compAuthorValue)</log>
+
+    <!-- Add/overwrite Bundle.timestamp -->
+    <process handler="JsonPointerProcessor" operation="process" output="bundleTimestampBefore">
+      <input name="content">$bundleStamped</input>
+      <input name="pointer">"/timestamp"</input>
+    </process>
+
+    <assign to="tsParams{bundle}">$bundleStamped</assign>
+    <assign to="tsParams{ts}">$currentTimestamp</assign>
+
+    <assign to="replaceBundleTsTemplate">
+      '${bundle?replace("(?s)(\\\"resourceType\\\"\\s*:\\s*\\\"Bundle\\\".*?\\\"timestamp\\\"\\s*:\\s*\\\")[^\"]*(\\\")", "$1${ts}$2", "r")}'
+    </assign>
+    <assign to="insertBundleTsTemplate">
+      '${bundle?replace("(?s)(\\\"type\\\"\\s*:\\s*\\\"document\\\")", "$1, \\\"timestamp\\\":\\\"${ts}\\\"", "r")}'
+    </assign>
+
+    <if>
+      <cond>string-length(normalize-space($bundleTimestampBefore)) &gt; 0</cond>
+      <then>
+        <process handler="TemplateProcessor" operation="process" output="bundleStamped">
+          <input name="syntax">"freemarker"</input>
+          <input name="template">$replaceBundleTsTemplate</input>
+          <input name="parameters">$tsParams</input>
+        </process>
+      </then>
+      <else>
+        <process handler="TemplateProcessor" operation="process" output="bundleStamped">
+          <input name="syntax">"freemarker"</input>
+          <input name="template">$insertBundleTsTemplate</input>
+          <input name="parameters">$tsParams</input>
+        </process>
+      </else>
+    </if>
+
+    <!-- Proof: Bundle.timestamp exists -->
+    <process handler="JsonPointerProcessor" operation="process" output="bundleTimestampAfter">
+      <input name="content">$bundleStamped</input>
+      <input name="pointer">"/timestamp"</input>
+    </process>
+    <verify handler="ExpressionValidator" desc="Bundle.timestamp present">
+      <input name="expression">string-length(normalize-space($bundleTimestampAfter)) &gt; 0</input>
+    </verify>
+    <log>concat("Bundle.timestamp AFTER: ", $bundleTimestampAfter)</log>
+
     <!-- 5) VALIDATE THE BUNDLE VIA SMART HELPER → /validate -->
-    <assign to="valParams{obj}">$bundleResult</assign>
+    <assign to="valParams{obj}">$bundleStamped</assign>
     <assign to="valResourceTemplate">'${obj}'</assign>
     <process handler="TemplateProcessor" operation="process" output="valResourceBody">
       <input name="syntax">"freemarker"</input>
@@ -259,9 +495,7 @@
       <input name="parameters">$valParams</input>
     </process>
 
-    <!-- Centralize the FHIR host here -->
     <assign to="fhirHost">"http://fhir-server:8080/fhir"</assign>
-    <!-- If needed, swap to: "http://matchbox:8080/matchboxv3/fhir" or "http://fhir:8080/fhir" -->
 
     <assign to="validateBody">
       concat('{"resource": ', $valResourceBody, ', "profile_url": "http://smart.who.int/icvp/StructureDefinition/Bundle-uv-ips-ICVP", "host": "', $fhirHost, '"}')

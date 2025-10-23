@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   # GDHCN Validator Service for HCERT testing
   hcert-validator:
@@ -87,8 +85,9 @@ services:
       POSTGRES_USER: 'matchbox'
       POSTGRES_PASSWORD: 'matchbox'
       SPRING_CONFIG_LOCATION: 'file:///config/application.yml'
+      
     volumes:
-      - ./matchbox/data:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
     # networks: [backend]
 
   # smart-helper (this app)
@@ -121,3 +120,5 @@ services:
 # networks:
 #   backend:
 #     driver: bridge
+volumes:
+  pgdata:   # declare the volume    
