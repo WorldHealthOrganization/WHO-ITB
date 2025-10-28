@@ -749,7 +749,7 @@ def shlink_authorize():
 
         # URL is mandatory, pin optional
         if 'url' not in data:
-            return jsonify({'error': 'missing_fields', 'details': 'url field required'}), 400
+            return jsonify({'error': 'missing_fields', 'details': 'url field required', "request": data}), 400
 
         url = data['url']
         pin = str(data.get('pin') or '').strip()
@@ -781,13 +781,15 @@ def shlink_authorize():
             ]
         else:
             # No PIN → single GET attempt
-            methods = [
-                ('Direct GET', lambda: requests.get(
-                    url,
-                    allow_redirects=True,
-                    timeout=30,
-                )),
-            ]
+                methods = [
+                    ('Empty JSON POST', lambda: requests.post(
+                        url,
+                        json={},  # <— empty body
+                        headers={'Content-Type': 'application/json'},
+                        allow_redirects=True,
+                        timeout=30,
+                    )),
+                ]
 
         # Attempt each method
         for method_name, method_func in methods:
