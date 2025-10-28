@@ -74,6 +74,10 @@ ENV_BASE = {
     "dev": "https://tng-cdn-dev.who.int",
 }
 
+
+DEFAULT_GDHCN_DOMAINS = ["RACSEL-DDVC", "PH4H", "DCC", "IPS-PILGRIMAGE"]
+
+
 def fetch_remote_json(url: str) -> dict:
     """Fetch a JSON/JSON-LD document with friendly fallbacks."""
     headers = {"Accept": "application/ld+json, application/json;q=0.9, */*;q=0.1"}
@@ -333,6 +337,12 @@ def pubkey_from_jwk_ec_p256(jwk_dict: dict):
 
 # -------- DID/Trustlist functions --------
 
+# add near other helpers
+def trustlist_aggregate_url(env: str) -> str:
+    base = ENV_BASE[env].rstrip("/")
+    return f"{base}/v2/trustlist/did.json"
+
+
 def did_web_to_url(did: str) -> str:
     """Convert did:web identifier to HTTPS URL."""
     assert did.startswith("did:web:"), f"Unsupported DID method: {did}"
@@ -415,7 +425,7 @@ def verify_jsonwebsignature2020(did_doc: dict, loader) -> Tuple[str, str]:
 
     # Parse protected header
     header_b64 = jws_compact.split(".", 2)[0]
-    header = json.loads(base64.urlsafe_b64decode(header_b64 + "=="))
+    header = json.loads(base64.urlsafe_b64decode(header_b64 + "=" * (-len(header_b64) % 4)))
     return vm.get("id", vm_ref), header.get("alg", "unknown")
 
 def extract_pubkeys_from_trustlist_doc(doc: dict) -> List[Tuple[Optional[str], object]]:
@@ -448,7 +458,7 @@ def parse_shlink_reference(hcert: Dict[str, Any]) -> Dict[str, Any]:
     if ref.startswith('shlink://'):
         payload_b64 = ref[9:]
         try:
-            payload_json = base64.urlsafe_b64decode(payload_b64 + '=' * (4 - len(payload_b64) % 4))
+            payload_json = base64.urlsafe_b64decode(payload_b64 + '=' * (-len(payload_b64) % 4))
             payload = json.loads(payload_json)
             
             result.update({
@@ -463,7 +473,7 @@ def parse_shlink_reference(hcert: Dict[str, Any]) -> Dict[str, Any]:
             result['error'] = str(e)
     elif not ref.startswith('http'):
         try:
-            decoded = base64.urlsafe_b64decode(ref + '=' * (4 - len(ref) % 4))
+            decoded = base64.urlsafe_b64decode(ref + '=' * (-len(ref) % 4))
             decoded_str = decoded.decode('utf-8')
             if decoded_str.startswith('http'):
                 result['url'] = decoded_str
@@ -478,6 +488,11 @@ def extract_issuer(payload: Dict[str, Any]) -> Optional[str]:
     """Extract issuer from COSE payload."""
     issuer = payload.get('iss') or payload.get(1) or payload.get('1')
     return issuer if isinstance(issuer, str) else None
+
+
+def _pk_fingerprint(pk):
+    nums = pk.public_numbers()
+    return (nums.x, nums.y)  # stable for P-256
 
 # -------- Original API Endpoints --------
 
@@ -628,6 +643,7 @@ def decode_hcert():
             'diagnostics': {
                 'base45_decoded_len': len(compressed_data),
                 'zlib_decompressed_len': len(cbor_data),
+                'base45_invalid_chars': invalid_chars, 
             },
             'cose': {
                 'protected': bytes_to_json_safe(cose['protected']),
@@ -669,7 +685,7 @@ def extract_metadata():
         if isinstance(cose.get('protected'), dict) and '_b64' in cose['protected']:
             # Decode from base64
             protected_b64 = cose['protected']['_b64']
-            protected_bytes = base64.urlsafe_b64decode(protected_b64 + '=' * (4 - len(protected_b64) % 4))
+            protected_bytes = base64.urlsafe_b64decode(protected_b64 + '=' * (-len(protected_b64) % 4))
             cose['protected'] = cbor2.loads(protected_bytes)
         
         kid_b64, kid_hex = extract_kid(cose)
@@ -1052,12 +1068,24 @@ def verify_signature():
         # Get verification options
         use_gdhcn = data.get('use_gdhcn', False)
         gdhcn_env = data.get('gdhcn_env', 'prod')
-        participant = data.get('participant', '-')
+        participant = data.get('participant', '-')        # may be overridden by inference below
         domain = data.get('domain', 'DCC')
         usage = data.get('usage', 'DSC')
         verify_did_proof = data.get('verify_did_proof', True)
         allow_remote_contexts = data.get('allow_remote_contexts', False)
         context_dir = data.get('context_dir', 'contexts')
+
+        # Try to infer participant from CWT issuer if caller didn't provide one
+        inferred_participant = None
+        try:
+            cwt = cbor2.loads(payload_bstr)
+            inferred_participant = extract_issuer(cwt)  # e.g. "BE"
+        except Exception:
+            pass
+
+        if (participant == '-' or not participant.strip()) and isinstance(inferred_participant, str) and inferred_participant.strip():
+            participant = inferred_participant.strip()
+            logger.info(f"[verify] Participant inferred from issuer: {participant}")
         
         # Parse protected headers to get KID and algorithm
         protected_headers = cbor2.loads(protected_bstr)
@@ -1080,68 +1108,169 @@ def verify_signature():
         candidates = []
         trustlist_verified = False
         trustlist_keys_info = []
-        trustlist_meta = None   # NEW: ensure defined even if GDHCN not used
-        
-        # Fetch keys from GDHCN if requested
-        if use_gdhcn:
-            try:
-                # Fetch trustlist
-                did = build_trustlist_did(gdhcn_env, domain, participant, usage)
-                url = did_web_to_url(did)
-                logger.info(f"[verify] Fetching trustlist from: {url}")
-                trust_doc = fetch_json(url)
-                trustlist_meta = {"did": did, "url": url} if use_gdhcn else None
+        trustlist_meta = []  # will collect both successes and failures
 
-                # Verify trustlist integrity if requested
-                if verify_did_proof:
+        if use_gdhcn:
+            # Build the domain list: explicit `domains` > explicit `domain` > defaults.
+            req_domain = data.get('domain')
+            if (req_domain is None) and not data.get('domains'):
+                # No domain/domains specified: go straight to flat trustlist on this env
+                flat_url = f"https://tng-cdn-{gdhcn_env}.who.int/v2/trustlist/did.json"
+                logger.info(f"[verify] No domain specified -> using flat trustlist: {flat_url}")
+                try:
+                    trust_doc = fetch_json(flat_url)
+                    any_success = True
+                    # (optional) verify proof here as in #1
+                    keys = extract_pubkeys_from_trustlist_doc(trust_doc)
+                    for k, pk in keys:
+                        fp = _pk_fingerprint(pk)
+                        if fp not in seen_pks:
+                            seen_pks.add(fp)
+                            trustlist_keys_info.append({'kid': k, 'domain': 'global', 'available': True})
+                            all_keys.append((k, pk))
+                except Exception as e:
+                    logger.warning(f"[verify] Flat trustlist fetch failed: {e}")
+            else:            
+                domain_list = [req_domain] if (isinstance(req_domain, str) and req_domain.strip()) else DEFAULT_GDHCN_DOMAINS
+                if isinstance(data.get('domains'), list) and data['domains']:
+                    domain_list = data['domains']
+
+            all_keys = []
+            trustlist_meta = []
+            seen_pks = set()
+            proof_failures = []
+            trustlist_keys_info = []
+            trustlist_verified = False
+            any_success = False
+
+            # === domain logic ===
+            req_domain = data.get('domain')
+            domains_param = data.get('domains')
+            domain_list = [req_domain] if (isinstance(req_domain, str) and req_domain.strip()) else DEFAULT_GDHCN_DOMAINS
+            if isinstance(domains_param, list) and domains_param:
+                domain_list = domains_param
+
+            # === if no domain/domains specified: try flat trustlist first ===
+            if req_domain is None and not domains_param:
+                flat_url = f"https://tng-cdn-{gdhcn_env}.who.int/v2/trustlist/did.json"
+                logger.info(f"[verify] No domain specified -> using flat trustlist: {flat_url}")
+                try:
+                    trust_doc = fetch_json(flat_url)
+                    any_success = True
+                    # (optional) verify flat trustlist proof
+                    if verify_did_proof:
+                        try:
+                            loader = make_local_context_loader(context_dir, allow_remote=allow_remote_contexts)
+                            jsonld.set_document_loader(loader)
+                            vm_id, alg2 = verify_jsonwebsignature2020(trust_doc, loader)
+                            trustlist_verified = True
+                            logger.info(f"[verify] Flat trustlist DID proof verified: vm={vm_id}, alg={alg2}")
+                        except Exception as e2:
+                            proof_failures.append(f"flat: {e2}")
+                            logger.warning(f"[verify] Flat trustlist proof NOT verified: {e2}")
+
+                    # extract keys
+                    keys = extract_pubkeys_from_trustlist_doc(trust_doc)
+                    logger.info(f"[verify] Extracted {len(keys)} keys from flat trustlist")
+                    for k, pk in keys:
+                        fp = _pk_fingerprint(pk)
+                        if fp not in seen_pks:
+                            seen_pks.add(fp)
+                            trustlist_keys_info.append({'kid': k, 'domain': 'global', 'available': True})
+                            all_keys.append((k, pk))
+                except Exception as e:
+                    logger.warning(f"[verify] Flat trustlist fetch failed: {e}")
+            else:
+
+
+                for dom in domain_list:
                     try:
-                        loader = make_local_context_loader(context_dir, allow_remote=allow_remote_contexts)
-                        jsonld.set_document_loader(loader)
-                        vm_id, alg = verify_jsonwebsignature2020(trust_doc, loader)
-                        trustlist_verified = True
-                        logger.info(f"[verify] Trustlist DID proof verified: vm={vm_id}, alg={alg}")
+                        did = build_trustlist_did(gdhcn_env, dom, participant, usage)
+                        url = did_web_to_url(did)
+                        logger.info(f"[verify] Fetching trustlist for domain={dom} -> {url}")
+                        trust_doc = fetch_json(url)
+                        any_success = False
+                        trustlist_meta.append({"domain": dom, "url": url, "status": "ok"})
+
+                        # Best-effort DID proof verification per domain
+                        if verify_did_proof:
+                            try:
+                                loader = make_local_context_loader(context_dir, allow_remote=allow_remote_contexts)
+                                jsonld.set_document_loader(loader)
+                                vm_id, alg2 = verify_jsonwebsignature2020(trust_doc, loader)
+                                trustlist_verified = True
+                                logger.info(f"[verify] Trustlist DID proof verified for {dom}: vm={vm_id}, alg={alg2}")
+                            except Exception as e:
+                                proof_failures.append(f"{dom}: {e}")
+                                logger.warning(f"[verify] Trustlist proof NOT verified for {dom}: {e}")
+
+                        # Extract keys for this domain
+                        keys = extract_pubkeys_from_trustlist_doc(trust_doc)
+                        logger.info(f"[verify] Extracted {len(keys)} key(s) from {dom}")
+                        for k, pk in keys:
+                            fp = _pk_fingerprint(pk)
+                            if fp in seen_pks:
+                                continue
+                            seen_pks.add(fp)
+                            trustlist_keys_info.append({'kid': k, 'domain': dom, 'available': True})
+                            all_keys.append((k, pk))
+
+                    except requests.exceptions.HTTPError as e:
+                        code = getattr(e.response, "status_code", None)
+                        logger.warning(f"[verify] Trustlist fetch failed for {dom}: HTTP {code}")
+                        # 👉 If 404, try the fallback flat trustlist
+                        if code == 404:
+                            flat_url = f"https://tng-cdn-{gdhcn_env}.who.int/v2/trustlist/did.json"
+                            logger.info(f"[verify] Trying flat trustlist fallback: {flat_url}")
+                            try:
+                                trust_doc = fetch_json(flat_url)
+                                trustlist_meta.append({"domain": "global", "url": flat_url, "status": "ok"})
+                                # reuse the same key extraction logic
+                                keys = extract_pubkeys_from_trustlist_doc(trust_doc)
+                                logger.info(f"[verify] Extracted {len(keys)} keys from flat trustlist")
+                                for k, pk in keys:
+                                    fp = _pk_fingerprint(pk)
+                                    if fp not in seen_pks:
+                                        seen_pks.add(fp)
+                                        trustlist_keys_info.append({'kid': k, 'domain': 'global', 'available': True})
+                                        all_keys.append((k, pk))
+                                break  # stop after success
+                            except Exception as e2:
+                                logger.warning(f"[verify] Fallback trustlist also failed: {e2}")
+                        continue
                     except Exception as e:
-                        logger.warning(f"[verify] Trustlist verification failed: {e}")
-                        if not data.get('allow_unverified_trustlist', False):
+                        logger.error(f"[verify] Unexpected error for {dom}: {e}", exc_info=True)
+                        trustlist_meta.append({"domain": dom, "did": did, "url": url, "status": "error", "details": str(e)})
+                        if not data.get('fallback_on_error', True):
                             return jsonify({
                                 'valid': False,
-                                'error': 'trustlist_verification_failed',
-                                'details': str(e)
-                            }), 400
-                
-                # Extract keys and log details
-                keys = extract_pubkeys_from_trustlist_doc(trust_doc)
-                logger.info(f"[verify] Extracted {len(keys)} keys from trustlist")
-                
-                for kid, pk in keys:
-                    logger.info(f"[verify] Available key KID: {kid}")
-                    trustlist_keys_info.append({'kid': kid, 'available': True})
-                
-                # Check if we have a matching KID
-                if kid_b64:
-                    matching_keys = [(k, pk) for (k, pk) in keys if k == kid_b64]
-                    if matching_keys:
-                        logger.info(f"[verify] Found {len(matching_keys)} matching key(s) for KID {kid_b64}")
-                        candidates.extend(matching_keys)
-                    else:
-                        logger.warning(f"[verify] No matching key found for KID {kid_b64} in trustlist")
-                    
-                    # Add non-matching keys as fallback
-                    non_matching = [(k, pk) for (k, pk) in keys if k != kid_b64]
-                    candidates.extend(non_matching)
-                else:
-                    logger.info("[verify] No KID in header, trying all keys")
-                    candidates.extend(keys)
-                    
-            except Exception as e:
-                logger.error(f"[verify] GDHCN fetch failed: {e}", exc_info=True)
-                if not data.get('fallback_on_error', True):
-                    return jsonify({
-                        'valid': False,
-                        'error': 'gdhcn_fetch_failed',
-                        'details': str(e)
-                    }), 500
-        
+                                'error': 'gdhcn_fetch_failed',
+                                'details': f"{dom}: {e}",
+                                'trustlists': trustlist_meta
+                            }), 500
+                        continue
+
+            # If proof verification is required but none passed, block unless explicitly allowed
+            if verify_did_proof and not trustlist_verified and not data.get('allow_unverified_trustlist', False):
+                return jsonify({
+                    'valid': False,
+                    'error': 'trustlist_verification_failed',
+                    'details': '; '.join(proof_failures) or 'no trustlist verified',
+                    'trustlists': trustlist_meta
+                }), 400
+
+            # No trustlists could be fetched (e.g., all 404) → no keys
+            if not any_success and not all_keys:
+                logger.warning("[verify] No trustlists available across domains; 0 keys collected")
+
+            # Prioritize KID match if present
+            if kid_b64:
+                matches = [(k, pk) for (k, pk) in all_keys if k == kid_b64]
+                nonmatches = [(k, pk) for (k, pk) in all_keys if k != kid_b64]
+                candidates.extend(matches + nonmatches)
+            else:
+                candidates.extend(all_keys)
+
         # Try verification with candidates
         verification_attempts = []
         logger.info(f"[verify] Attempting verification with {len(candidates)} key(s)")
@@ -1629,7 +1758,8 @@ OPENAPI_SPEC = {
                                     "use_gdhcn": {"type": "boolean", "default": False, "description": "Use GDHCN trustlist for verification"},
                                     "gdhcn_env": {"type": "string", "enum": ["prod", "uat", "dev"], "default": "prod"},
                                     "participant": {"type": "string", "default": "-"},
-                                    "domain": {"type": "string", "default": "DCC"},
+                                    "domains": {"type": "array", "items": { "type": "string" }, "description": "Optional list of trustlist domains to query. If neither domain nor domains is provided, defaults to [RACSEL-DDVC, PH4H, DCC, IPS-PILGRIMAGE]." },
+                                    "domain": { "type": "string", "default": "DCC", "description": "Single domain filter. Prefer 'domains' for multiple; omit to use the default multi-domain set." },
                                     "usage": {"type": "string", "default": "DSC"},
                                     "verify_did_proof": {"type": "boolean", "default": True},
                                     "allow_remote_contexts": {"type": "boolean", "default": False},
