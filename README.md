@@ -1,5 +1,8 @@
 # WHO-ITB with HCERT Validation
-This is a shareable, pre-configured instance of the Interoperability Test Bed for WHO purposes, designed for validating HCERTs (Health Certificates) using VHL and ICVP test cases.
+This is a shareable, pre-configured instance of the Interoperability Test Bed for WHO GDHCN Trust Network purposes, designed for validating HCERTs (Health Certificates) using VHL and ICVP test cases.
+
+<img width="1143" height="537" alt="{7DBF0C14-EB8D-42D5-9E03-D7452FDA25DF}" src="https://github.com/user-attachments/assets/89d7ce20-80a7-4d2d-a15c-7a5bd2a8934d" />
+
 
 ## Quick Start
 
@@ -332,7 +335,6 @@ This testing composition uses the Interoperability Test Bed as the main tool of 
 
 ## Documentation
 - **[User Guide](USER_GUIDE.md)**: Step-by-step guide for running tests and using the system
-- **[HCERT Test Guide](HCERT_TEST_GUIDE.md)**: Detailed technical guide for HCERT test execution
 
 ## Introduction to the ITB
 https://interoperable-europe.ec.europa.eu/collection/interoperability-test-bed-repository/solution/interoperability-test-bed
