@@ -1,5 +1,5 @@
 # WHO-ITB with HCERT Validation
-This is a shareable, pre-configured instance of the Interoperability Test Bed for WHO purposes, designed for validating HCERT (Health Certificate) with VHL and ICVP test cases.
+This is a shareable, pre-configured instance of the Interoperability Test Bed for WHO purposes, designed for validating HCERTs (Health Certificates) using VHL and ICVP test cases.
 
 ## Quick Start
 
