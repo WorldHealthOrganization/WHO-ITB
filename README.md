@@ -38,7 +38,7 @@ As a quick overview, this repository contains:
 - Git
 - Docker with compose
 - A browser
-- Internet connection (for GDHCN validator image)
+- Internet connection (for pulling Docker images)
 
 ### Prerequisites for development and testing
 - Basic knowledge of ITB test case development
