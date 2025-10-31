@@ -1,5 +1,5 @@
 # WHO-ITB with HCERT Validation
-This is a shareable, pre-configured instance of the Interoperability Test Bed for WHO purposes, enhanced with HCERT (Health Certificate) validation test cases.
+This is a shareable, pre-configured instance of the Interoperability Test Bed for WHO purposes, designed for validating HCERTs (Health Certificates) using VHL and ICVP test cases.
 
 ## Quick Start
 
@@ -23,19 +23,22 @@ This is a shareable, pre-configured instance of the Interoperability Test Bed fo
 
 ## Repo contents
 As a quick overview, this repository contains:
-+ A running, empty Interoperability Test Bed instance (GITB) with all required containers (base ITB composition);
-+ All helper services with full sourcecode and as containers for the composition;
-+ GDHCN validator service for HCERT processing and validation;
-+ An initial configuration of the domains with communities, organizations, users and admins, etc., including:
-    + Multiple testing domains and conformance statements from WHO in these domains;
-    + Testsuites and test-cases for these domains (example: HAJJ Program);
++ A running, pre-configured Interoperability Test Bed instance (GITB) with all required containers;
++ GDHCN helper service for HCERT decoding and SMART Health Link processing;
++ SMART helper service for FHIR transformation and validation;
++ MatchBox FHIR validation server;
++ HAPI FHIR server;
++ An initial configuration with communities, organizations, users and admins;
++ Test suites for HCERT validation:
+    + VHL (Verifiable Health Link) test suite
+    + ICVP (International Certificate of Vaccination and Prophylaxis) test suite
     
 ## Prerequisites
 ### Prerequisites for running
 - Git
 - Docker with compose
 - A browser
-- Internet connection (for GDHCN validator image)
+- Internet connection (for pulling Docker images)
 
 ### Prerequisites for development and testing
 - Basic knowledge of ITB test case development
@@ -43,19 +46,20 @@ As a quick overview, this repository contains:
 ## Installation
 1. Clone the repository:
    ```bash
-   git clone https://github.com/szalaierik-tsch/WHO-ITB
+   git clone https://github.com/WorldHealthOrganization/WHO-ITB
    cd WHO-ITB
    ```
 
-2. Start the composition with Docker on your local machine (will build the helper service and pull GDHCN validator):
+2. Start the composition with Docker on your local machine:
    ```bash 
    docker-compose up --build
    ```
-   This will start:
+   This will start the following services (accessible from your host machine):
    - ITB Test Bed UI at http://localhost:10003
-   - Helper Services at http://localhost:10005
-   - GDHCN Validator at http://localhost:8080
-   - MatchBox at  http://localhost:8089
+   - HCERT Validator (GDHCN helper) at http://localhost:8089
+   - FHIR Server (HAPI) at http://localhost:8080
+   - MatchBox at http://localhost:8087
+   - SMART Helper at http://localhost:8000
 
 3. Go to http://localhost:10003 in your browser.
 
@@ -68,112 +72,54 @@ As a quick overview, this repository contains:
 
 ## HCERT Test Cases
 
-This repository includes a comprehensive test suite for HCERT (Health Certificate) validation. The test suite covers:
+This repository includes test suites for HCERT (Health Certificate) validation covering two main scenarios:
 
-### Test Case Coverage
-1. **Valid HCERT QR Code Validation** (`tc-qr-valid-hcert`)
-   - Tests QR code format validation
-   - Validates HC1: prefix requirement
-   - Ensures proper QR code decoding
+### Test Suite 1: VHL (Verifiable Health Link)
+**Test Case**: Track 1 - System Utilizes and Validates HCERT: VHL
 
-2. **Invalid HCERT QR Code Rejection** (`tc-qr-invalid-hcert`)
-   - Negative test for invalid QR codes
-   - Tests proper error handling
-   - Validates rejection of non-HCERT codes
+This test validates:
+1. **QR Code Decoding**: Decode QR code image to HC1 string
+2. **HCERT Decoding**: Base45 decode, ZLIB decompress, and extract COSE/CWT structure
+3. **Smart Health Link Extraction**: Extract SHLink reference from the HCERT payload
+4. **Authorization**: Authorize with PIN to access the manifest
+5. **FHIR Resource Retrieval**: Fetch and decrypt FHIR resources from the VHL
+6. **Validation**: Validate the retrieved IPS bundle against the LACPass RACSEL IPS 0.1.0 profile
 
-3. **CWT Token Extraction** (`tc-cwt-extraction`)
-   - Tests Base45 decoding
-   - Validates ZLIB decompression
-   - Ensures CBOR Web Token structure
+### Test Suite 2: ICVP (International Certificate of Vaccination and Prophylaxis)
+**Test Case**: Track 2 - System Utilizes and Validates HCERT: ICVP
 
-4. **CWT Structure Validation** (`tc-cwt-validation`)
-   - Validates CWT against FHIR StructureDefinition
-   - Tests compliance with http://smart.who.int/trust/StructureDefinition/CWT
+This test validates:
+1. **QR Code Decoding**: Decode ICVP QR code image to HC1 string
+2. **HCERT Decoding**: Base45 decode, ZLIB decompress, and extract ICVP payload from CWT
+3. **Implementation Guide Installation**: Upload required IGs to MatchBox
+4. **FHIR Transformation**: Transform ICVP claim to IPS Bundle using StructureMap
+5. **Validation**: Validate the transformed IPS Bundle against the IPS profile
 
-5. **Signature Algorithm Validation** (`tc-signature-algorithm-validation`)
-   - Tests ES256 (Primary - ECC P-256) support
-   - Tests PS256 (Secondary - RSA PSS) support
-   - Validates COSE parameter mapping
-
-6. **Key Identifier Validation** (`tc-key-identifier-validation`)
-   - Tests 8-byte key ID format
-   - Validates ISO 3166-1 alpha-2 country codes
-   - Tests trust network key retrieval
-
-7. **Digital Signature Verification** (`tc-signature-verification`)
-   - Tests cryptographic signature validation
-   - Validates certificate expiration
-   - Tests trust chain verification
-
-8. **HCERT Payload Extraction** (`tc-hcert-payload-extraction`)
-   - Tests claim key -260 extraction
-   - Validates HCERT structure against FHIR StructureDefinition
-   - Supports multiple certificate types (EU DCC, DDCC VS, DDCC TR)
-
-### Supported Certificate Types
-- **EU DCC**: European Digital COVID Certificate
-- **DDCC VS**: WHO DDCC Vaccination Certificate
-- **DDCC TR**: WHO DDCC Test Result Certificate
-- **Smart Health Links**: URI-based health certificates
+For detailed test execution instructions, see the **[User Guide](USER_GUIDE.md)** and **[HCERT Test Guide](HCERT_TEST_GUIDE.md)**.
 
 ## Building and Deployment
 
 ### Standard Deployment
 For regular use, follow the installation steps above. The system will automatically:
-1. Build the WHO helper services from source
-2. Pull the GDHCN validator image
-3. Initialize the ITB with pre-configured test suites
-4. Set up all required services and dependencies
+1. Build the GDHCN helper service (Python-based HCERT decoder) from source
+2. Build the SMART helper service (Python-based FHIR transformer) from source
+3. Pull the MatchBox FHIR validation server image
+4. Pull the HAPI FHIR server image
+5. Initialize the ITB with pre-configured test suites
+6. Set up all required services and dependencies
 
-### Development Deployment
-If you need to modify the helper services or test cases:
+### Resetting the Environment
+To completely reset and start fresh:
 
-1. **Modify Helper Services**:
-   ```bash
-   cd who-helper
-   # Make your changes to the Java code
-   mvn clean package
-   cd ..
-   docker-compose build who-helper-services
-   docker-compose up -d who-helper-services
-   ```
+```bash
+# Stop and remove all containers, networks, and volumes
+docker-compose down -v
 
-2. **Update Test Cases**:
-   - Modify files in `test-suites/hcert-validation/`
-   - Test cases: `test-suites/hcert-validation/test-cases/`
-   - Scriptlets: `test-suites/hcert-validation/scriptlets/`
-   - Resources: `test-suites/hcert-validation/resources/`
+# Start from scratch
+docker-compose up --build
+```
 
-3. **Deploy Updated Test Suite**:
-   ```bash
-   # Create test suite package
-   cd test-suites/hcert-validation
-   zip -r hcert-validation-test-suite.zip .
-   
-   # Upload via ITB UI at http://localhost:10003
-   # Go to Administration > Test Suites > Import
-   ```
-
-### Custom Validator Integration
-To use a different GDHCN validator instance:
-
-1. Update `docker-compose.override.yml`:
-   ```yaml
-   services:
-     gdhcn-validator:
-       image: your-custom-validator:tag
-       # or use external service:
-       external_links:
-         - "your-validator-host:gdhcn-validator"
-   ```
-
-2. Update environment variables:
-   ```yaml
-   services:
-     who-helper-services:
-       environment:
-         - GDHCN_VALIDATOR_ENDPOINT=http://your-validator-host:port
-   ```
+**Warning**: This will delete all test data and sessions.
 
 ## Running Test Cases
 
@@ -184,104 +130,48 @@ To use a different GDHCN validator instance:
    # Should show all services as "Up"
    ```
 
-2. Verify GDHCN validator health:
+2. Verify service health:
    ```bash
-   curl http://localhost:8080/actuator/health
-   # Should return {"status":"UP"}
+   # Check HCERT validator (GDHCN helper)
+   curl http://localhost:8089/health
+   
+   # Check FHIR server
+   curl http://localhost:8080/fhir/metadata
+   
+   # Check MatchBox
+   curl http://localhost:8087/fhir/metadata
+   
+   # Check SMART helper
+   curl http://localhost:8000/health
    ```
 
-### Executing HCERT Test Cases
+### Executing Test Cases
 
 1. **Access ITB UI**: http://localhost:10003
 
 2. **Login** with test user:
    - Username: `user@who.itb.test`
-   - Password: `change_this_password`
+   - Password: `change_this_password` (change on first login)
 
 3. **Navigate to Test Sessions**:
-   - Go to "Test Sessions" menu
-   - Select "HCERT Validation Test Suite"
+   - Go to "Conformance Statements" or "Test Sessions" menu
+   - You will see available test suites
 
-4. **Run Individual Test Cases**:
-   - **Valid QR Code Test**: Select `tc-qr-valid-hcert`
-   - **Invalid QR Code Test**: Select `tc-qr-invalid-hcert`
-   - **CWT Extraction Test**: Select `tc-cwt-extraction`
-   - **Algorithm Validation**: Select `tc-signature-algorithm-validation`
-   - **Key Validation**: Select `tc-key-identifier-validation`
-   - **Signature Verification**: Select `tc-signature-verification`
-   - **Payload Extraction**: Select `tc-hcert-payload-extraction`
+4. **Run VHL Test Case**:
+   - Select "Track 1: System Utilizes and Validates HCERT: VHL"
+   - Click "Test" or "Create Test Session"
+   - Upload a QR code image containing an HCERT with VHL reference
+   - Provide PIN when prompted (e.g., `1234` for test data)
+   - Review the validation results
 
-5. **Provide Test Inputs**:
-   Each test case will prompt for required inputs:
-   - **QR Code Content**: Paste HCERT QR code string
-   - **CWT Tokens**: Provide extracted CWT data
-   - **Configuration**: Set validation parameters
+5. **Run ICVP Test Case**:
+   - Select "Track 2: System Utilizes and Validates HCERT: ICVP"
+   - Click "Test" or "Create Test Session"
+   - Upload an ICVP QR code image
+   - Wait for IG installation and transformation (may take 30-60 seconds)
+   - Review the validation results
 
-6. **Monitor Test Execution**:
-   - Real-time test execution logs
-   - Step-by-step validation results
-   - Detailed error reporting
-   - Comprehensive test reports
-
-### Sample Test Data
-The test suite includes sample data in `test-suites/hcert-validation/resources/test-data.json`:
-
-```json
-{
-  "validHCERTQRCode": "HC1:NCFOXN%TSMAHN-H+XO5XF7:UY%FJ.FK6ZK7...",
-  "invalidQRCode": "INVALID:NCFOXN%TSMAHN-H+XO5XF7...",
-  "supportedAlgorithms": ["ES256", "PS256"],
-  "testCountryCodes": ["DE", "FR", "IT", "ES", "NL", "BE"]
-}
-```
-
-### Test Execution Modes
-
-#### 1. Interactive Mode
-- Manual test execution via ITB UI
-- Step-by-step interaction
-- Real-time input and validation
-- Suitable for development and debugging
-
-#### 2. Automated Mode
-- REST API-based execution
-- Batch test execution
-- CI/CD integration support
-- Suitable for continuous validation
-
-Example automated execution:
-```bash
-# Execute test case via API
-curl -X POST http://localhost:10003/api/rest/tests/execute \
-  -H "Content-Type: application/json" \
-  -d '{
-    "testSuite": "ts-hcert-validation",
-    "testCase": "tc-qr-valid-hcert",
-    "inputs": {
-      "qrContent": "HC1:NCFOXN%TSMAHN-H+XO5XF7..."
-    }
-  }'
-```
-
-### Test Reports and Results
-After test execution, detailed reports are available:
-
-1. **Test Session Reports**:
-   - Overall test results
-   - Step-by-step execution details
-   - Validation outcomes
-   - Error analysis
-
-2. **Export Options**:
-   - PDF reports
-   - XML test results
-   - JSON execution logs
-   - CSV summary data
-
-3. **Integration Reports**:
-   - Compliance assessment
-   - Standards conformance
-   - Interoperability validation
+For detailed step-by-step instructions, see the **[User Guide](USER_GUIDE.md)**.
 
 ## Users for immediate usage
 Users are set up with temporary passwords, you need to change it immediately after the first login.
@@ -297,32 +187,51 @@ Users are set up with temporary passwords, you need to change it immediately aft
 ### Component Overview
 ```
 ┌─────────────────┐  ┌──────────────────┐  ┌─────────────────┐
-│   ITB Test Bed  │  │  WHO Helper      │  │ GDHCN Validator │
-│   (port 10003)  │◄─┤  Services        │◄─┤ (port 8080)     │
-│                 │  │  (port 10005)    │  │                 │
+│   ITB Test Bed  │  │  GDHCN Helper    │  │  SMART Helper   │
+│   (port 10003)  │◄─┤  (port 8089)     │  │  (port 8000)    │
+│                 │  │  HCERT Decoder   │  │  FHIR Transform │
 └─────────────────┘  └──────────────────┘  └─────────────────┘
-         │                       │
-         ▼                       ▼
-┌─────────────────┐  ┌──────────────────┐
-│   Test Cases    │  │   HCERT          │
-│   Orchestration │  │   Validation     │
-│                 │  │   Logic          │
-└─────────────────┘  └──────────────────┘
+         │                       │                    │
+         │                       │                    ▼
+         │                       │          ┌─────────────────┐
+         │                       │          │  MatchBox       │
+         │                       │          │  (port 8087)    │
+         │                       │          │  FHIR Validator │
+         │                       │          └─────────────────┘
+         │                       │                    │
+         ▼                       ▼                    ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    HAPI FHIR Server (port 8080)             │
+│                    FHIR Resource Storage                    │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ### Service Integration
 - **ITB Test Bed**: Orchestrates test execution and provides UI
-- **WHO Helper Services**: Custom test service implementations for HCERT validation
-- **GDHCN Validator**: Specialized service for HCERT/CWT processing and validation
+- **GDHCN Helper**: Python-based service for HCERT decoding and SMART Health Link processing
+- **SMART Helper**: Python-based service for FHIR transformation using StructureMaps
+- **MatchBox**: FHIR validation server with IG support
+- **HAPI FHIR Server**: General-purpose FHIR server for resource storage
 - **Test Cases**: XML-based test definitions following GITB TDL specifications
 
 ### Data Flow
-1. **Test Initiation**: User triggers test via ITB UI
-2. **Test Orchestration**: ITB processes test case XML and invokes scriptlets
-3. **Service Calls**: Helper services call GDHCN validator for HCERT processing
-4. **Validation**: GDHCN validator performs cryptographic and structural validation
-5. **Result Processing**: Results are processed and formatted for ITB reporting
-6. **Report Generation**: Comprehensive test reports with validation outcomes
+
+#### VHL Test Flow
+1. **QR Code Upload**: User uploads QR code image via ITB UI
+2. **HCERT Decoding**: GDHCN helper decodes HC1 string to COSE/CWT structure
+3. **SHLink Extraction**: Extract Smart Health Link reference from payload
+4. **Authorization**: User provides PIN to authorize VHL access
+5. **FHIR Retrieval**: GDHCN helper fetches encrypted FHIR resources
+6. **Validation**: SMART helper validates retrieved IPS bundle
+7. **Report Generation**: ITB generates comprehensive test report
+
+#### ICVP Test Flow
+1. **QR Code Upload**: User uploads ICVP QR code image via ITB UI
+2. **HCERT Decoding**: GDHCN helper decodes HC1 string and extracts ICVP claim
+3. **IG Installation**: SMART helper uploads required IGs to MatchBox
+4. **Transformation**: SMART helper transforms ICVP claim to IPS Bundle via StructureMap
+5. **Validation**: MatchBox validates the transformed bundle against IPS profile
+6. **Report Generation**: ITB generates comprehensive test report
 
 ## Configuration Management
 
@@ -330,25 +239,38 @@ Users are set up with temporary passwords, you need to change it immediately aft
 Key configuration parameters in `docker-compose.override.yml`:
 
 ```yaml
-environment:
-  - GDHCN_VALIDATOR_ENDPOINT=http://gdhcn-validator:8080
-  - ITB_DOMAIN_KEY=WHO_HCERT
-  - DATA_ARCHIVE_KEY=WHO_ITB1
-  - AUTOMATION_API_ENABLED=true
+services:
+  hcert-validator:
+    ports:
+      - "8089:8080"  # External port 8089 maps to internal container port 8080
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  fhir-server:
+    ports:
+      - "8080:8080"
+    environment:
+      - hapi.fhir.cr.enabled=true
+
+  matchbox:
+    ports:
+      - "8087:8080"
+
+  smart-helper:
+    ports:
+      - "8000:8000"
+    environment:
+      - FHIR_HOST=http://fhir-server:8080/fhir  # Internal Docker network address
+      - MATCHBOX_HOST=http://matchbox:8080/matchboxv3/fhir  # Internal Docker network address
 ```
+
+**Note**: The environment variables use internal Docker network addresses (e.g., `http://fhir-server:8080`). These are different from the external host access URLs (e.g., `http://localhost:8080`).
 
 ### Domain Configuration
 The ITB is configured with HCERT-specific domain settings:
 - **Domain**: WHO HCERT Validation
-- **Validation Service**: Custom HCERT validation logic
-- **Processing Service**: HCERT-aware processing operations
-- **Test Data**: Pre-loaded with sample HCERT certificates
-
-### Customization Options
-1. **Validation Rules**: Modify validation logic in helper services
-2. **Test Scenarios**: Add/modify test cases in test-suites directory
-3. **Certificate Support**: Extend support for additional certificate types
-4. **Integration Points**: Configure external validator services
+- **Test Suites**: VHL and ICVP validation
+- **Test Data**: Pre-loaded sample data in `test-data/` directory
 
 ## Troubleshooting
 
@@ -360,30 +282,44 @@ The ITB is configured with HCERT-specific domain settings:
    docker-compose ps
    
    # Check logs
-   docker-compose logs gdhcn-validator
-   docker-compose logs who-helper-services
+   docker-compose logs hcert-validator
+   docker-compose logs smart-helper
+   docker-compose logs fhir-server
+   docker-compose logs matchbox
    ```
 
-2. **GDHCN Validator Connection Issues**:
+2. **HCERT Validator Connection Issues**:
    ```bash
    # Test validator connectivity
-   curl http://localhost:8080/actuator/health
+   curl http://localhost:8089/health
    
    # Check network connectivity
    docker network ls
    docker network inspect who-itb_default
    ```
 
-3. **Test Execution Failures**:
-   - Check test case XML syntax
-   - Verify scriptlet dependencies
-   - Validate test data format
-   - Review helper service logs
+3. **FHIR Server Issues**:
+   ```bash
+   # Test FHIR server
+   curl http://localhost:8080/fhir/metadata
+   
+   # Test MatchBox
+   curl http://localhost:8087/fhir/metadata
+   
+   # Test SMART helper
+   curl http://localhost:8000/health
+   ```
+
+4. **Test Execution Failures**:
+   - Check test case XML syntax in `testsuites/` directory
+   - Verify all services are running and healthy
+   - Review service logs for error messages
+   - Ensure test data files exist in `test-data/` directory
 
 ### Performance Optimization
-- Increase Docker memory allocation for large test suites
-- Configure appropriate timeout values for validator calls
-- Optimize test data size for faster execution
+- Increase Docker memory allocation for large test suites (recommended: 4GB+)
+- Wait for all services to fully initialize before running tests
+- MatchBox IG installation may take 30-60 seconds on first run
 
 ## Security Considerations
 - Default passwords must be changed immediately
