@@ -95,7 +95,7 @@ This test validates:
 4. **FHIR Transformation**: Transform ICVP claim to IPS Bundle using StructureMap
 5. **Validation**: Validate the transformed IPS Bundle against the IPS profile
 
-For detailed test execution instructions, see the **[User Guide](USER_GUIDE.md)** and **[HCERT Test Guide](HCERT_TEST_GUIDE.md)**.
+For detailed test execution instructions, see the **[User Guide](USER_GUIDE.md)**.
 
 ## Building and Deployment
 
