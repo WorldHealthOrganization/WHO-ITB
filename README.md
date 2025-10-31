@@ -54,7 +54,7 @@ As a quick overview, this repository contains:
    ```bash 
    docker-compose up --build
    ```
-   This will start:
+   This will start the following services (accessible from your host machine):
    - ITB Test Bed UI at http://localhost:10003
    - HCERT Validator (GDHCN helper) at http://localhost:8089
    - FHIR Server (HAPI) at http://localhost:8080
@@ -242,7 +242,7 @@ Key configuration parameters in `docker-compose.override.yml`:
 services:
   hcert-validator:
     ports:
-      - "8089:8080"
+      - "8089:8080"  # External port 8089 maps to internal container port 8080
     environment:
       - PYTHONUNBUFFERED=1
 
@@ -260,9 +260,11 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - FHIR_HOST=http://fhir-server:8080/fhir
-      - MATCHBOX_HOST=http://matchbox:8080/matchboxv3/fhir
+      - FHIR_HOST=http://fhir-server:8080/fhir  # Internal Docker network address
+      - MATCHBOX_HOST=http://matchbox:8080/matchboxv3/fhir  # Internal Docker network address
 ```
+
+**Note**: The environment variables use internal Docker network addresses (e.g., `http://fhir-server:8080`). These are different from the external host access URLs (e.g., `http://localhost:8080`).
 
 ### Domain Configuration
 The ITB is configured with HCERT-specific domain settings:
