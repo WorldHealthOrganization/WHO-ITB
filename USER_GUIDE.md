@@ -144,6 +144,8 @@ You will see a list of conformance statements assigned to your organization.
 
 The conformance statements show which test suites are available for your organization. You should see:
 
+- **System Validates and Utilizes HCERT** : System validates QR code and verifies Signature
+
 - **Track 1: System Utilizes and Validates HCERT: VHL**
   - Description: Validates QR Code, retrieves and validates LACPass RACSEL IPS 0.1.0
   
