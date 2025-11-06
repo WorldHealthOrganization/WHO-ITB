@@ -12,7 +12,7 @@
        ===================================================================================== -->
 
   <metadata>
-    <gitb:name>System validates QR code and verifies signature</gitb:name>
+    <gitb:name>Generic QR Code signature verification test suite</gitb:name>
     <gitb:description>Upload barcode, decode HC1 and CWT Payload, and verify QR Code signature</gitb:description>
     <gitb:version>1.0</gitb:version>
   </metadata>

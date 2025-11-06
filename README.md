@@ -35,7 +35,7 @@ As a quick overview, this repository contains:
 + Test suites for HCERT validation:
     + VHL (Verifiable Health Link) test suite
     + ICVP (International Certificate of Vaccination and Prophylaxis) test suite
-    + QR Code Signature Verification test suite
+    + Generic QR Code Signature Verification test suite
     
 ## Prerequisites
 ### Prerequisites for running
@@ -99,8 +99,8 @@ This test validates:
 4. **FHIR Transformation**: Transform ICVP claim to IPS Bundle using StructureMap
 5. **Validation**: Validate the transformed IPS Bundle against the IPS profile
 
-### Test Suite 3: QR Code Signature Verification
-**Test Case**: System validates QR code and verifies signature
+### Test Suite 3: Generic QR Code Signature Verification
+**Test Case**: Generic QR Code signature verification test suite
 
 This test validates:
 1. **QR Code Upload**: Upload a barcode image

@@ -6,7 +6,7 @@
 		(e.g. a "test_cases" folder for the test cases, a "scriptlets" folder for scriptlets, "resources" for files to import etc.).
 	-->
 	<metadata>
-		<gitb:name>System validates QR code and verifies signature</gitb:name>
+		<gitb:name>Generic QR Code signature verification test suite</gitb:name>
 		<gitb:version>1.0</gitb:version>
 		<gitb:description>Upload barcode, decode HC1 and CWT Payload, and verify QR Code signature</gitb:description>
 	</metadata>
