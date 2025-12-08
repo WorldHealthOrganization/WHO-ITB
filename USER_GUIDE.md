@@ -8,6 +8,7 @@ This user guide provides step-by-step instructions for using the WHO Interoperab
 - [3. Navigating to Conformance Statements and Starting a Test Session](#3-navigating-to-conformance-statements-and-starting-a-test-session)
 - [4. Running the HCERT with VHL Test Case](#4-running-the-hcert-with-vhl-test-case)
 - [5. Running the ICVP Test Case](#5-running-the-icvp-test-case)
+- [6. Running the Generic QR Code Signature Verification Test Case](#6-running-the-generic-qr-code-signature-verification-test-case)
 
 ---
 
@@ -143,6 +144,8 @@ You will see a list of conformance statements assigned to your organization.
 ### Step 3.2: View Available Test Suites
 
 The conformance statements show which test suites are available for your organization. You should see:
+
+- **Generic QR Code Signature Verification**: Upload barcode, decode HC1 and CWT Payload, and verify QR Code signature
 
 - **Track 1: System Utilizes and Validates HCERT: VHL**
   - Description: Validates QR Code, retrieves and validates LACPass RACSEL IPS 0.1.0
@@ -388,6 +391,109 @@ The validation results will show:
    - **View Logs**: Access detailed execution logs
 
 3. Click **"Finish"** to complete the test session
+
+---
+
+## 6. Running the Generic QR Code Signature Verification Test Case
+
+The Generic QR Code Signature Verification test case validates any HCERT QR code and verifies its cryptographic signature without domain restrictions.
+
+### Step 6.1: Select the Generic QR Code Signature Verification Test Case
+
+1. From your test session, select **"Generic QR Code signature verification test suite"**
+2. Click **"Start Test"** or **"Execute"**
+
+### Step 6.2: Provide the QR Code Image
+
+1. You will see a **"QR Code Image"** upload field
+2. Click **"Choose File"** or **"Browse"**
+3. Select a QR code image file (PNG or JPEG format)
+   - Use any HCERT QR code image (VHL, ICVP, or other HCERT formats)
+   - Sample files are available in the `test-data/` directory if needed
+4. Click **"Upload"** or the form will auto-submit
+
+**What happens**:
+- The system decodes the QR code from the image
+- Extracts the HC1: prefixed HCERT data
+- Prepares for signature verification
+
+### Step 6.3: Decode the QR Code
+
+The test will automatically decode the QR code:
+
+1. **Decode QR Image**: Extract the HC1: string from the image
+2. **Base45 Decode**: Decode the HC1 payload
+3. **ZLIB Decompress**: Decompress the data
+4. **Extract COSE**: Parse the CBOR Object Signing and Encryption structure
+5. **Extract CWT Payload**: Extract the CBOR Web Token payload
+
+You will see:
+- ✅ QR code decoded successfully
+- ✅ HC1 string extracted
+- The COSE structure with protected headers
+- The CWT payload in JSON format
+
+### Step 6.4: Verify the QR Code Signature
+
+The test will verify the cryptographic signature:
+
+**Verification process**:
+1. Extracts the raw COSE signature triplet
+2. Attempts to verify using the GDHCN trust network
+3. Checks against available trust anchors without domain restrictions
+4. Validates the signature cryptographically
+
+**Verification parameters**:
+- **Environment**: DEV (development trustlist)
+- **Domain**: None (supports any domain)
+- **Usage**: DSC (Document Signer Certificate)
+- **DID Proof Verification**: Enabled
+- **Unverified Trustlist**: Allowed (for testing)
+
+You will see:
+- ✅ Signature verification initiated
+- ✅ HTTP Status: 200 (if successful)
+- ✅ Signature Valid: true/false
+- KID (Key Identifier) from header
+- KID used for verification
+- Number of trust anchor candidates tried
+- Detailed verification message
+
+### Step 6.5: Review Verification Results
+
+The verification results will show:
+
+**Successful verification**:
+- ✅ COSE signature HTTP response check: PASSED
+- ✅ COSE signature validity check: PASSED
+- ✅ COSE signature verification successful: PASSED
+- Message: "Signature verification PASSED"
+
+**Failed verification** (if signature is invalid):
+- ❌ COSE signature validity check: FAILED
+- Message: "Signature verification FAILED"
+- Additional debug information showing:
+  - Available KIDs in the trustlist
+  - Candidates tried
+  - Reason for failure
+
+### Step 6.6: Complete the Test Session
+
+1. Review the complete test execution:
+   - QR code decoding results
+   - COSE structure details
+   - CWT payload information
+   - Signature verification outcome
+   - Detailed execution logs
+
+2. Available actions:
+   - **View Logs**: Access detailed verification logs
+   - **Download Results**: Export as JSON or PDF
+   - **Export Report**: Generate a comprehensive test report
+
+3. Click **"Finish"** to complete the test session
+
+**Note**: This test case is generic and works with any HCERT QR code format. It focuses solely on decoding and signature verification without requiring domain-specific validation or transformation.
 
 ---
 

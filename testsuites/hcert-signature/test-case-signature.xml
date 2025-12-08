@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testcase id="test-case-signature"
+  xmlns="http://www.gitb.com/tdl/v1/"
+  xmlns:gitb="http://www.gitb.com/core/v1/" >
+
+  <!-- =====================================================================================
+       OVERVIEW
+       1) Ask user to upload a QR image
+       2) POST /decode/image (multipart) -> get raw_data (HC1:)
+       3) POST /decode/hcert with {"qr_data": "...", "include_raw": true} -> cose/payload/hcert + _raw
+       4) POST /verify/signature with {"cose_raw":...} to verify the QR code signature
+       ===================================================================================== -->
+
+  <metadata>
+    <gitb:name>Generic QR Code signature verification test suite</gitb:name>
+    <gitb:description>Upload barcode, decode HC1 and CWT Payload, and verify QR Code signature</gitb:description>
+    <gitb:version>1.0</gitb:version>
+  </metadata>
+
+  <actors>
+    <gitb:actor id="User" role="SUT"/>
+    <gitb:actor id="HCertDecoder"/>
+  </actors>
+
+  <variables>
+    <var name="uploadedFile" type="binary"/>
+  </variables>
+
+  <steps>
+
+    <!-- 0.1: Request the user to upload a file -->
+    <interact id="userFileUpload" desc="Upload file">
+      <request desc="Upload a QRCode:" name="uploadedFile" inputType="UPLOAD" required="true">$uploadedFile</request>
+    </interact>
+
+    <!-- ===================== 1) Decode QRCode ===================== -->
+
+    <!-- 1.1 Build multipart parts list: a single file part named 'image' -->
+    <assign to="imgPart{name}">"image"</assign>
+    <assign to="imgPart{contentType}">"image/png"</assign>
+    <assign to="imgPart{fileName}">"upload.png"</assign>
+    <assign to="imgPart{content}">$uploadedFile</assign>
+    <assign to="sendParts" append="true">$imgPart</assign>
+    <assign to="reqHeaders{Accept}">"application/json"</assign>
+
+    <!-- 1.2 POST to http://hcert-validator:8080/decode/image with parts -->
+    <send id="img_to_content" desc="Decode QR image" handler="HttpMessagingV2" from="User" to="HCertDecoder" >
+      <input name="uri">"http://hcert-validator:8080/decode/image"</input>
+      <input name="method">"POST"</input>
+      <input name="parts">$sendParts</input>
+      <input name="headers">$reqHeaders</input>
+    </send>
+
+    <verify handler="NumberValidator" desc="Image decode HTTP status is 200">
+      <input name="actualnumber">$img_to_content{response}{status}</input>
+      <input name="expectednumber">"200"</input>
+    </verify>
+
+    <!-- ===================== 2) DECODE HC1 -> cose, payload, hcert ===================== -->
+
+    <!-- 2.1 Extract 'qr_data' from JSON response -->
+    <process handler="JsonPointerProcessor" operation="process" output="raw_data_value">
+      <input name="content">$img_to_content{response}{body}</input>
+      <input name="pointer">"/qr_data"</input>
+    </process>
+    <log>"QR Data (HC1 string):"</log>
+    <log>$raw_data_value</log>
+
+    <!-- 2.2 Build {"qr_data":"<HC1...>", "include_raw": true} -->
+    <assign to="tplParams{value}">$raw_data_value</assign>
+    <assign to="tplRef">'{"qr_data":"${value?json_string}","include_raw":true}'</assign>
+    <process handler="TemplateProcessor" operation="process" output="requestJson">
+      <input name="syntax">"freemarker"</input>
+      <input name="template">$tplRef</input>
+      <input name="parameters">$tplParams</input>
+    </process>
+    <log>"Data to decode:"</log>
+    <log>$requestJson</log>
+
+    <!-- POST to /decode/hcert (single call, includes _raw) -->
+    <assign to="hc1DecodeHeaders{Content-Type}">"application/json"</assign>
+    <send id="decode_hc1" desc="Decode HC1 to CWT Payload" from="User" to="HCertDecoder" handler="HttpMessagingV2">
+      <input name="uri">"http://hcert-validator:8080/decode/hcert"</input>
+      <input name="method">"POST"</input>
+      <input name="body">$requestJson</input>
+      <input name="headers">$hc1DecodeHeaders</input>
+    </send>
+
+    <verify handler="NumberValidator" desc="HC1 decode HTTP status is 200">
+      <input name="actualnumber">$decode_hc1{response}{status}</input>
+      <input name="expectednumber">"200"</input>
+    </verify>
+
+    <log>"HC1 Decoded Response:"</log>
+    <log>$decode_hc1{response}{body}</log>
+
+    <!-- Extract cose and payload for logging -->
+    <process handler="JsonPointerProcessor" operation="process" output="coseVal">
+      <input name="content">$decode_hc1{response}{body}</input>
+      <input name="pointer">"/cose"</input>
+    </process>
+    <process handler="JsonPointerProcessor" operation="process" output="payloadVal">
+      <input name="content">$decode_hc1{response}{body}</input>
+      <input name="pointer">"/payload"</input>
+    </process>
+
+    <log>"COSE structure:"</log>
+    <log>$coseVal</log>
+    <log>"CWT Payload:"</log>
+    <log>$payloadVal</log>
+
+    <!-- ===================== 3) COSE SIGNATURE VERIFICATION ===================== -->
+
+    <!-- Pull raw COSE triplet (_raw) from /decode/hcert -->
+    <process handler="JsonPointerProcessor" operation="process" output="coseRaw">
+      <input name="content">$decode_hc1{response}{body}</input>
+      <input name="pointer">"/cose/_raw"</input>
+    </process>
+
+    <!-- Build verifier request JSON for DEV, allowing unverified trustlist -->
+    <assign to="verifyParams{cose_raw}">$coseRaw</assign>
+    <assign to="verifyParams{use_gdhcn}">true()</assign>
+    <assign to="verifyParams{gdhcn_env}">"dev"</assign>
+    <assign to="verifyParams{participant}">"-"</assign>
+    <!-- <assign to="verifyParams{domain}">"PH4H"</assign> -->
+    <assign to="verifyParams{usage}">"DSC"</assign>
+    <assign to="verifyParams{verify_did_proof}">true()</assign>
+    <assign to="verifyParams{allow_unverified_trustlist}">true()</assign>
+    <assign to="verifyParams{allow_remote_contexts}">true()</assign>
+    <assign to="verifyParams{context_dir}">"contexts"</assign>
+
+    <!-- Keep cose_raw as a raw JSON fragment -->
+    <assign to="verifyTpl">
+      '{"cose_raw":${cose_raw},"use_gdhcn":${use_gdhcn?c},"gdhcn_env":"${gdhcn_env}","participant":"${participant}","usage":"${usage}","verify_did_proof":${verify_did_proof?c},"allow_unverified_trustlist":${allow_unverified_trustlist?c},"allow_remote_contexts":${allow_remote_contexts?c},"context_dir":"${context_dir}"}'
+    </assign>
+    <process handler="TemplateProcessor" operation="process" output="verifyBody">
+      <input name="syntax">"freemarker"</input>
+      <input name="template">$verifyTpl</input>
+      <input name="parameters">$verifyParams</input>
+    </process>
+
+    <log>"Verifying signature..."</log>
+
+    <!-- Call verifier -->
+    <assign to="verifyHeaders{Content-Type}">"application/json"</assign>
+    <send id="verifyCose" desc="Verify COSE signature - no domain" handler="HttpMessagingV2" from="User" to="HCertDecoder">
+      <input name="uri">"http://hcert-validator:8080/verify/signature"</input>
+      <input name="method">"POST"</input>
+      <input name="headers">$verifyHeaders</input>
+      <input name="body">$verifyBody</input>
+    </send>
+
+    <!-- Store HTTP status -->
+    <assign to="sigHttp">$verifyCose{response}{status}</assign>
+
+    <!-- Extract all response fields for analysis -->
+    <process handler="JsonPointerProcessor" operation="process" output="sigValid">
+      <input name="content">$verifyCose{response}{body}</input>
+      <input name="pointer">"/valid"</input>
+    </process>
+
+    <process handler="JsonPointerProcessor" operation="process" output="sigKid">
+      <input name="content">$verifyCose{response}{body}</input>
+      <input name="pointer">"/verified_with_kid"</input>
+    </process>
+
+    <process handler="JsonPointerProcessor" operation="process" output="sigKidHdr">
+      <input name="content">$verifyCose{response}{body}</input>
+      <input name="pointer">"/kid_in_header"</input>
+    </process>
+
+    <process handler="JsonPointerProcessor" operation="process" output="sigMsg">
+      <input name="content">$verifyCose{response}{body}</input>
+      <input name="pointer">"/message"</input>
+    </process>
+
+    <process handler="JsonPointerProcessor" operation="process" output="sigTried">
+      <input name="content">$verifyCose{response}{body}</input>
+      <input name="pointer">"/candidates_tried"</input>
+    </process>
+
+    <!-- VERIFICATION CHECKS -->
+
+    <!-- Check 1: HTTP Status -->
+    <verify handler="NumberValidator" desc="COSE signature HTTP response check">
+      <input name="actualnumber">$sigHttp</input>
+      <input name="expectednumber">"200"</input>
+    </verify>
+
+    <!-- Check 2: Signature validity -->
+    <verify handler="StringValidator" desc="COSE signature validity check">
+      <input name="actualstring">$sigValid</input>
+      <input name="expectedstring">"true"</input>
+    </verify>
+
+    <!-- Check 3: Combined check using expression -->
+    <verify handler="ExpressionValidator" desc="COSE signature verification successful">
+      <input name="expression">($sigHttp = "200") and ($sigValid = "true")</input>
+    </verify>
+
+    <!-- Detailed logging for debugging -->
+    <log>"=========================================="</log>
+    <log>"SIGNATURE VERIFICATION RESULTS:"</log>
+    <log>"  HTTP Status: " || $sigHttp || " (expected 200)"</log>
+    <log>"  Valid: " || $sigValid || " (expected true)"</log>
+    <log>"  KID in header: " || $sigKidHdr</log>
+    <log>"  KID verified with: " || $sigKid</log>
+    <log>"  Candidates tried: " || $sigTried</log>
+    <log>"  Message: " || $sigMsg</log>
+    <log>"=========================================="</log>
+
+    <!-- Conditional message based on result -->
+    <if>
+      <cond>($sigHttp = "200") and ($sigValid = "true")</cond>
+      <then>
+        <log>"✅ Signature verification PASSED"</log>
+      </then>
+      <else>
+        <log>"❌ Signature verification FAILED"</log>
+        <!-- Extract more debug info on failure -->
+        <process handler="JsonPointerProcessor" operation="process" output="sigTrustKeys">
+          <input name="content">$verifyCose{response}{body}</input>
+          <input name="pointer">"/trustlist_keys"</input>
+        </process>
+        <log>"  Available KIDs in trustlist: " || substring(string($sigTrustKeys), 1, 500)</log>
+      </else>
+    </if>
+
+  </steps>
+
+  <output>
+    <success>
+      <default>"QR code decoded successfully and signature verified."</default>
+    </success>
+  </output>
+</testcase>
