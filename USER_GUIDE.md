@@ -578,12 +578,12 @@ docker-compose ps
 ## Getting Help
 
 For more detailed technical documentation:
-- **SOP Documentation**: See `SOP_DOCUMENTATION.md` for best practices on writing tests and conformance statements for SMART Guidelines
-- **README**: See `README.md` for architecture and development information
-- **ITB Documentation**: https://interoperable-europe.ec.europa.eu/collection/interoperability-test-bed-repository/solution/interoperability-test-bed
-- **WHO SMART Trust**: https://smart.who.int/trust
+- **[SOP Documentation](SOP_DOCUMENTATION.md)**: Best practices on writing tests and conformance statements for SMART Guidelines
+- **[README](README.md)**: Architecture and development information
+- **[ITB Documentation](https://interoperable-europe.ec.europa.eu/collection/interoperability-test-bed-repository/solution/interoperability-test-bed)**: Comprehensive ITB reference
+- **[WHO SMART Trust](https://smart.who.int/trust)**: WHO SMART Trust documentation
 
 For issues or questions:
 - Check the repository issues: https://github.com/WorldHealthOrganization/WHO-ITB/issues
 - Review test execution logs for detailed error messages
-- Consult the SOP documentation for test development guidance
+- Consult the [SOP documentation](SOP_DOCUMENTATION.md) for test development guidance
