@@ -578,7 +578,7 @@ docker-compose ps
 ## Getting Help
 
 For more detailed technical documentation:
-- **HCERT Test Guide**: See `HCERT_TEST_GUIDE.md` for detailed test case information
+- **SOP Documentation**: See `SOP_DOCUMENTATION.md` for best practices on writing tests and conformance statements for SMART Guidelines
 - **README**: See `README.md` for architecture and development information
 - **ITB Documentation**: https://interoperable-europe.ec.europa.eu/collection/interoperability-test-bed-repository/solution/interoperability-test-bed
 - **WHO SMART Trust**: https://smart.who.int/trust

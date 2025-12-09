@@ -345,6 +345,7 @@ This testing composition uses the Interoperability Test Bed as the main tool of 
 
 ## Documentation
 - **[User Guide](USER_GUIDE.md)**: Step-by-step guide for running tests and using the system
+- **[SOP Documentation](SOP_DOCUMENTATION.md)**: Standard Operating Procedure for SMART Guidelines testing - includes glossary, best practices, and guidelines for writing tests and conformance statements
 
 ## Introduction to the ITB
 https://interoperable-europe.ec.europa.eu/collection/interoperability-test-bed-repository/solution/interoperability-test-bed
