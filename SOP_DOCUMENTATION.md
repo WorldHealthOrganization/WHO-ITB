@@ -471,7 +471,7 @@ This example shows a basic test that validates a FHIR Immunization resource agai
         "parameter": [
           {
             "name": "resource",
-            "resource": $immunizationJSON$
+            "resource": $immunizationResource$
           },
           {
             "name": "profile",
@@ -570,8 +570,8 @@ This example shows how a conformance statement would be structured for a system 
     <limitation>Batch operations limited to 100 resources per request</limitation>
   </limitations>
   
-  <last-tested>2024-12-01</last-tested>
-  <next-review>2025-06-01</next-review>
+  <last-tested>YYYY-MM-DD</last-tested>
+  <next-review>YYYY-MM-DD</next-review>
 </conformance-statement>
 ```
 
@@ -638,7 +638,7 @@ testsuites/smart-immunizations/
 
 | Version | Date | Changes | Author |
 |---------|------|---------|--------|
-| 1.0 | 2024-12-09 | Initial SOP creation | WHO-ITB Team |
+| 1.0 | YYYY-MM-DD | Initial SOP creation | WHO-ITB Team |
 
 ---
 

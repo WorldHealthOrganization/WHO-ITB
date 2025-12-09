@@ -586,4 +586,4 @@ For more detailed technical documentation:
 For issues or questions:
 - Check the repository issues: https://github.com/WorldHealthOrganization/WHO-ITB/issues
 - Review test execution logs for detailed error messages
-- Consult the [SOP documentation](SOP_DOCUMENTATION.md) for test development guidance
+- Consult the [SOP Documentation](SOP_DOCUMENTATION.md) for test development guidance
