@@ -586,4 +586,4 @@ For more detailed technical documentation:
 For issues or questions:
 - Check the repository issues: https://github.com/WorldHealthOrganization/WHO-ITB/issues
 - Review test execution logs for detailed error messages
-- Consult the troubleshooting section in `HCERT_TEST_GUIDE.md`
+- Consult the SOP documentation for test development guidance
