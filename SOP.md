@@ -64,7 +64,7 @@ Domain: smart-immunizations (one per IG)
 
 ## 3. Workflow
 
-### For Test Developers
+### For Test Authors
 
 1. **Extract Requirements from IG**
    - Review StructureDefinitions, ActivityDefinitions, CQL Libraries
@@ -101,7 +101,7 @@ Domain: smart-immunizations (one per IG)
    - Execute test suite
    - Review conformance statement
 
-4. **Receive Conformance Badge**
+4. **Receive Conformance Report**
    - If all SHALL requirements pass → Full conformance
    - If ≥90% pass → Substantial conformance
    - If ≥70% pass → Partial conformance
