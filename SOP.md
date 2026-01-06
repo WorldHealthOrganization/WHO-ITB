@@ -103,8 +103,7 @@ Domain: smart-immunizations (one per IG)
 
 4. **Receive Conformance Report**
    - If all SHALL requirements pass → Full conformance
-   - If ≥90% pass → Substantial conformance
-   - If ≥70% pass → Partial conformance
+   - If some pass → Partial conformance
 
 ---
 
@@ -123,7 +122,7 @@ Domain: smart-immunizations (one per IG)
 - Keep actors focused on single capabilities
 - Make actors composable (systems can implement multiple)
 - Define clear FHIR operations per actor
-- Example actors: `patient-registry`, `immunization-recorder`, `decision-support`, `terminology-service`
+- Example actors: `patient-registry`, `immunization-recorder`, `decision-support-service`, `terminology-service`
 
 ### Test Suite Organization
 ```
