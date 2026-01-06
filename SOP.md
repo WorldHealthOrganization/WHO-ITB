@@ -34,12 +34,12 @@ Domain: smart-immunizations (one per IG)
 ├── Actors (System Roles)
 │   ├── patient-registry
 │   ├── immunization-recorder
-│   └── decision-support
+│   └── decision-support-service
 │
 ├── Test Suites (one per Actor)
 │   ├── TS-patient-registry-v1
 │   ├── TS-immunization-recorder-v1
-│   └── TS-decision-support-v1
+│   └── TS-decision-support-service-v1
 │
 └── Organisations (Implementors)
     └── Systems declare which Actors they implement
