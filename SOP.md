@@ -14,7 +14,7 @@ Reference: [ITB Glossary](https://www.itb.ec.europa.eu/docs/itb-ta/latest/introd
 | **Community** | SMART Guideline Implementor Ecosystem | Global group implementing SMART Guidelines | WHO Member States, SMART Immunizations implementers |
 | **Domain** | Implementation Guide (IG) | One domain per IG | `smart-immunizations`, `smart-hiv`, `smart-anc` |
 | **Specification** | Functional & Non Functional Requirements | Testable requirement from the IG | "System SHALL capture patient demographics" |
-| **Actor** | System Role/Persona/Actor | Testable capabilities in a system role that a system can implement | `patient-registry`, `immunization-recorder`, `decision-support` |
+| **Actor** | System Role/Persona/Actor | Testable capabilities in a system role that a system can implement | `patient-registry`, `immunization-recorder`, `decision-support-service` |
 | **Organisation** | Software Implementor / Member State | Entity implementing the guideline | Ministry of Health Kenya, OpenMRS Foundation |
 | **System** | System Under Test | Specific software being tested | "Kenya EMR v3.2", "OpenMRS SMART Module" |
 | **Conformance Statement** | Actor Implementation Declaration | Which actors a system implements | "System implements Patient Registration + Immunization Recording" |
