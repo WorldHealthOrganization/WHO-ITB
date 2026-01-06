@@ -57,7 +57,7 @@ Domain: smart-immunizations (one per IG)
 
 3. **Implementors declare Actors for conformance**
    - System Under Test: "Kenya EMR v3.2"
-   - Declares: `patient-registry` (full), `immunization-recorder` (full), `decision-support` (partial)
+   - Declares: `patient-registry` (full), `immunization-recorder` (full), `decision-support-service` (partial)
    - Gets tested against those actors' test suites
 
 ---
