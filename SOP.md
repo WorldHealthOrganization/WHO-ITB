@@ -72,7 +72,7 @@ Domain: smart-immunizations (one per IG)
 
 2. **Define Actors**
    - Group related requirements by capability
-   - Create one actor per major capability (e.g., recording, decision support)
+   - Create one actor per major capability (e.g., recording, decision support service)
 
 3. **Create Test Suites**
    - One test suite per actor
