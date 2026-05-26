@@ -41,8 +41,8 @@ services:
       # - hapi.fhir.implementationguides.racsel.url=https://lacpass.racsel.org/package.tgz
 
       - hapi.fhir.ig_runtime_upload_enabled=true
-      - hapi.fhir.custom_content_path=/custom
-      - hapi.fhir.app_content_path=/apps
+      - hapi.fhir.custom_content_path=/custom//
+      - hapi.fhir.app_content_path=/apps//
     volumes:
       - ./config/fhir/custom:/custom
       - ./config/fhir/apps:/apps
