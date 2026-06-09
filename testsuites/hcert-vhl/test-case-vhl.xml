@@ -139,7 +139,7 @@
 <assign to="verifyParams{use_gdhcn}">true()</assign>
 <assign to="verifyParams{gdhcn_env}">"dev"</assign>
 <assign to="verifyParams{participant}">"-"</assign>
-<assign to="verifyParams{domain}">"PH4H"</assign>
+<!-- <assign to="verifyParams{domain}">"PH4H"</assign> -->
 <assign to="verifyParams{usage}">"DSC"</assign>
 <assign to="verifyParams{verify_did_proof}">true()</assign>
 <assign to="verifyParams{allow_unverified_trustlist}">true()</assign>
@@ -148,7 +148,7 @@
 
 <!-- Keep cose_raw as a raw JSON fragment -->
 <assign to="verifyTpl">
-  '{"cose_raw":${cose_raw},"use_gdhcn":${use_gdhcn?c},"gdhcn_env":"${gdhcn_env}","participant":"${participant}","domain":"${domain}","usage":"${usage}","verify_did_proof":${verify_did_proof?c},"allow_unverified_trustlist":${allow_unverified_trustlist?c},"allow_remote_contexts":${allow_remote_contexts?c},"context_dir":"${context_dir}"}'
+  '{"cose_raw":${cose_raw},"use_gdhcn":${use_gdhcn?c},"gdhcn_env":"${gdhcn_env}","participant":"${participant}","usage":"${usage}","verify_did_proof":${verify_did_proof?c},"allow_unverified_trustlist":${allow_unverified_trustlist?c},"allow_remote_contexts":${allow_remote_contexts?c},"context_dir":"${context_dir}"}'
 </assign>
 <process handler="TemplateProcessor" operation="process" output="verifyBody">
   <input name="syntax">"freemarker"</input>
@@ -158,7 +158,7 @@
 
 <!-- Call verifier -->
 <assign to="verifyHeaders{Content-Type}">"application/json"</assign>
-<send id="verifyCose" desc="Verify COSE signature (non-blocking)" handler="HttpMessagingV2" from="User" to="HCertDecoder">
+<send id="verifyCose" desc="Verify COSE signature - no domain" handler="HttpMessagingV2" from="User" to="HCertDecoder">
   <input name="uri">"http://hcert-validator:8080/verify/signature"</input>
   <input name="method">"POST"</input>
   <input name="headers">$verifyHeaders</input>
