@@ -42,7 +42,7 @@ services:
     # TODO: switch back to costateixeira/gdhcn-validator:<tag> once a build newer
     # than 0.2.0 (which is missing /verify/signature and other endpoints) is published.
     build:
-      context: E:/work/WHO-ITB/gdhcn-helper
+      context: ./gdhcn-helper
       dockerfile: Dockerfile
     container_name: hcert-validator
     restart: unless-stopped
