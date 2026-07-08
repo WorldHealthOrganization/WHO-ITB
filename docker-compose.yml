@@ -43,6 +43,11 @@ services:
       - DATA_ARCHIVE_KEY=WHO_ITB1
       # Flag to enable the Test Bed's REST API. This can be very useful for efficient test case development.
       - AUTOMATION_API_ENABLED=true
+      # Master key for the REST API's top-level operations (lets itb-cli / the
+      # authoring manager bootstrap domain/community/spec/org/system from one key).
+      - AUTOMATION_API_MASTER_KEY=${AUTOMATION_API_MASTER_KEY:-master-api-key}
+      # No admin onboarding prompts (sample import / API questions).
+      - STARTUP_WIZARD_ENABLED=${STARTUP_WIZARD_ENABLED:-false}
       # Activate the generic GITB theme.
       - THEME=who
       # Password for the 'gitb' DB user — must match gitb-mysql's MYSQL_PASSWORD.
