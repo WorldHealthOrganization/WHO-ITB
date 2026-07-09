@@ -1,0 +1,67 @@
+# Example override file for adding plugins.
+# Copy this to docker-compose.override.yml and uncomment the services you need.
+# Or use a recipe from https://github.com/HealthOpenSpace/itb-plugins/tree/main/recipes
+#
+# Usage:
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#   # edit to enable services
+#   docker compose up -d
+
+services: 
+
+  fhir-validator:
+    image: eclipse-temurin:17-jre
+    container_name: fhir-validator
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./validator_cli.jar:/app/validator_cli.jar:ro
+    ports:
+      - "8088:8081"
+    environment:
+      - JAVA_TOOL_OPTIONS=-Xmx2g
+    command:
+      - java
+      - -jar
+      - /app/validator_cli.jar
+      - server
+      - "8081"
+      - -version
+      - "4.0"
+      - -allowNetworkAccess
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf -X POST http://localhost:8081/validateResource -H 'Content-Type: application/fhir+json' -d '{\"resourceType\":\"Patient\"}' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # ── Uncomment to add HAPI FHIR Server ──
+  # fhir-server:
+  #   image: hapiproject/hapi:latest
+  #   restart: unless-stopped
+  #   environment:
+  #     - hapi.fhir.ig_runtime_upload_enabled=true
+  #   ports:
+  #     - "8080:8080"
+  #   volumes:
+  #     - ./config/fhir/custom:/custom
+  #     - ./config/fhir/apps:/apps
+
+  # ── Uncomment to add Matchbox (StructureMap) ──
+  # matchbox:
+  #   image: europe-west6-docker.pkg.dev/ahdis-ch/ahdis/matchbox:v4.0.12
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8087:8080"
+  #   volumes:
+  #     - ./matchbox/config:/config
+  #   depends_on:
+  #     - matchbox-db
+  #
+  # matchbox-db:
+  #   image: postgres:latest
+  #   environment:
+  #     POSTGRES_DB: matchbox
+  #     POSTGRES_USER: matchbox
+  #     POSTGRES_PASSWORD: matchbox

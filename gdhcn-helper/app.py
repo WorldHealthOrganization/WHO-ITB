@@ -664,6 +664,43 @@ def decode_hcert():
                 'signature': base64.b64encode(cose['signature']).decode('ascii')
             }
 
+        # Also expose common CWT/HCERT sub-payloads as pre-serialised JSON
+        # STRING fields. Some downstream tooling (e.g. GITB TDL's
+        # JsonPointerProcessor + FreeMarker ${var?json_string}) can't reliably
+        # round-trip a nested object out of the response into a JSON body:
+        # coercions on the way out either dump Map.toString (invalid JSON) or
+        # fail type conversion at scriptlet boundaries. Giving callers a
+        # ready-to-embed JSON *string* sidesteps that whole class of issue.
+        response['payload_json'] = json.dumps(response['payload'], separators=(',', ':'))
+
+        # Under CWT claim -260 sits the HCERT container. Each numeric sub-key
+        # is a payload variant: 1=EU DCC HCERT v1, 5/6=SMART Health variants,
+        # -7=WHO SMART PH4H MedicationOverviewMin, etc. We can't know at
+        # pre-serialise time which one the test is after, so expose every
+        # sub-claim as its own JSON string field (`hcert_inner_<N>_json`)
+        # AND a convenience `hcert_inner_json` pointing at the sole payload
+        # when there's only one non-header sub-claim.
+        if isinstance(response['payload'], dict):
+            # CBOR decodes CWT claim keys as ints; they only become strings
+            # when jsonify serialises the response body. Look up both forms.
+            container = response['payload'].get(-260, response['payload'].get('-260'))
+            if isinstance(container, dict):
+                content_subs = {}
+                for k, v in container.items():
+                    if v is None:
+                        continue
+                    field = 'hcert_inner_' + str(k).replace('-', 'neg') + '_json'
+                    response[field] = json.dumps(v, separators=(',', ':'))
+                    content_subs[str(k)] = v
+                # If there's exactly one payload sub-claim, alias it so the
+                # common case doesn't need to know the specific number.
+                if len(content_subs) == 1:
+                    only = next(iter(content_subs.values()))
+                    response['hcert_inner_json'] = json.dumps(only, separators=(',', ':'))
+
+        if response.get('hcert') is not None:
+            response['hcert_json'] = json.dumps(response['hcert'], separators=(',', ':'))
+
         return jsonify(response)
 
     except Exception as e:

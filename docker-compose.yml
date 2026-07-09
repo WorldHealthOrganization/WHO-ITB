@@ -1,24 +1,37 @@
 volumes:
   gitb-repo:
   gitb-dbdata:
+
 services:
   gitb-redis:
     image: redis:7.2.5
     restart: unless-stopped
+
   gitb-mysql:
-    image: isaitb/gitb-mysql:latest
+    image: isaitb/gitb-mysql:1.29.5
     restart: unless-stopped
+    # The current gitb-mysql image REQUIRES non-empty passwords: its custom
+    # entrypoint exits with "No MySQL root password could be determined" if
+    # MYSQL_ROOT_PASSWORD / MYSQL_PASSWORD are unset (empty is rejected and
+    # MYSQL_ALLOW_EMPTY_PASSWORD is ignored). MYSQL_USER/MYSQL_DATABASE=gitb
+    # are baked into the image; MYSQL_PASSWORD must match gitb-ui's
+    # DB_DEFAULT_PASSWORD below. Root is only used by the healthcheck.
+    environment:
+      - MYSQL_ROOT_PASSWORD=gitb
+      - MYSQL_PASSWORD=gitb
     volumes:
       - gitb-dbdata:/var/lib/mysql
     healthcheck:
       test: "/usr/bin/mysql --user=root --password=$$MYSQL_ROOT_PASSWORD --execute \"SHOW DATABASES;\""
       interval: 3s
       retries: 10
+
   gitb-srv:
-    image: isaitb/gitb-srv:nightly
+    image: isaitb/gitb-srv:1.29.5
     restart: unless-stopped
+
   gitb-ui:
-    image: isaitb/gitb-ui:nightly
+    image: isaitb/gitb-ui:1.29.5
     restart: unless-stopped
     ports:
       - "10003:9000"
@@ -30,8 +43,15 @@ services:
       - DATA_ARCHIVE_KEY=WHO_ITB1
       # Flag to enable the Test Bed's REST API. This can be very useful for efficient test case development.
       - AUTOMATION_API_ENABLED=true
+      # Master key for the REST API's top-level operations (lets itb-cli / the
+      # authoring manager bootstrap domain/community/spec/org/system from one key).
+      - AUTOMATION_API_MASTER_KEY=${AUTOMATION_API_MASTER_KEY:-master-api-key}
+      # No admin onboarding prompts (sample import / API questions).
+      - STARTUP_WIZARD_ENABLED=${STARTUP_WIZARD_ENABLED:-false}
       # Activate the generic GITB theme.
       - THEME=who
+      # Password for the 'gitb' DB user — must match gitb-mysql's MYSQL_PASSWORD.
+      - DB_DEFAULT_PASSWORD=gitb
     depends_on:
       gitb-redis:
         condition: service_started
@@ -39,9 +59,3 @@ services:
         condition: service_healthy
       gitb-srv:
         condition: service_started
-  # who-helper-services:
-  #   build:
-  #     context: ./who-helper
-  #   restart: unless-stopped
-  #   ports:
-  #     - "10005:8181"
