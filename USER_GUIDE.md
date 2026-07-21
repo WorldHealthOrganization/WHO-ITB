@@ -8,7 +8,8 @@ This user guide provides step-by-step instructions for using the WHO Interoperab
 - [3. Navigating to Conformance Statements and Starting a Test Session](#3-navigating-to-conformance-statements-and-starting-a-test-session)
 - [4. Running the HCERT with VHL Test Case](#4-running-the-hcert-with-vhl-test-case)
 - [5. Running the ICVP Test Case](#5-running-the-icvp-test-case)
-- [6. Running the Generic QR Code Signature Verification Test Case](#6-running-the-generic-qr-code-signature-verification-test-case)
+- [6. Running the MeOW Test Case](#6-running-the-meow-test-case)
+- [7. Running the Generic QR Code Signature Verification Test Case](#7-running-the-generic-qr-code-signature-verification-test-case)
 
 ---
 
@@ -145,13 +146,16 @@ You will see a list of conformance statements assigned to your organization.
 
 The conformance statements show which test suites are available for your organization. You should see:
 
-- **Generic QR Code Signature Verification**: Upload barcode, decode HC1 and CWT Payload, and verify QR Code signature
-
 - **Track 1: System Utilizes and Validates HCERT: VHL**
   - Description: Validates QR Code, retrieves and validates LACPass RACSEL IPS 0.1.0
   
 - **Track 2: System Utilizes and Validates HCERT: ICVP**
   - Description: Validates QR code, retrieves and validates ICVP IPS Bundle
+
+- **Track 3: HCERT PH4H — QR to MEOW MedicationOverview Bundle**
+  - Description: Validates QR code, verifies the signature, and transforms and validates a MEOW MedicationOverview Bundle
+
+- **Generic QR Code Signature Verification**: Upload barcode, decode HC1 and CWT Payload, and verify QR Code signature
 
 ### Step 3.3: Select a Conformance Statement
 
@@ -193,7 +197,7 @@ The test case will prompt you to provide a QR code image containing an HCERT.
 1. You will see a **"QR Code Image"** upload field
 2. Click **"Choose File"** or **"Browse"**
 3. Select a QR code image file (PNG or JPEG format)
-   - Use the sample file: `test-data/1234.png` from the repository if you need test data
+   - Use the sample file: `test-data/Track1_VHL_1234_2026.jpg` (or `test-data/1234.png`) from the repository if you need test data
 4. Click **"Upload"** or the form will auto-submit
 
 **What happens**:
@@ -293,7 +297,7 @@ The ICVP (International Certificate of Vaccination and Prophylaxis) test case va
 1. You will see a **"QR Code Image"** upload field
 2. Click **"Choose File"** or **"Browse"**
 3. Select an ICVP QR code image file (PNG or JPEG format)
-   - Use the sample file: `test-data/icvp.png` from the repository if you need test data
+   - Use the sample file: `test-data/Track2_ICVP_2026.jpg` (or `test-data/icvp.png`) from the repository if you need test data
 4. Click **"Upload"** or the form will auto-submit
 
 **What happens**:
@@ -394,21 +398,128 @@ The validation results will show:
 
 ---
 
-## 6. Running the Generic QR Code Signature Verification Test Case
+## 6. Running the MeOW Test Case
+
+The MeOW (Medication Overview) test case validates a PH4H HCERT QR code, verifies its signature, and transforms the compact Medication Overview payload into an IHE Pharmacy MEOW MedicationOverview Bundle.
+
+### Step 6.1: Select the MeOW Test Case
+
+1. From your test session, select **"HCERT PH4H — QR to MEOW MedicationOverview Bundle"** (Track 3)
+2. Select the test case **"tc-ph4h-qr-001 QR → decode → transform → MEOW conformance"**
+3. Click **"Start Test"** or **"Execute"**
+
+### Step 6.2: Provide the MeOW QR Code Image
+
+1. You will see a **"QR Code Image"** upload field
+2. Click **"Choose File"** or **"Browse"**
+3. Select a MeOW QR code image file (PNG or JPEG format)
+   - Use the sample file: `test-data/Track3_MeOW_2026.jpg` from the repository if you need test data
+4. Click **"Upload"** or the form will auto-submit
+
+**What happens**:
+- The system decodes the QR code from the image
+- Extracts the HC1: prefixed HCERT data
+- Prepares for PH4H-specific processing
+
+### Step 6.3: Decode the HCERT
+
+The test will automatically decode the HCERT:
+
+1. **Decode QR Code**: Extract the HC1: string
+2. **Base45 Decode**: Decode the payload
+3. **ZLIB Decompress**: Decompress the data
+4. **Extract CWT**: Parse the CBOR Web Token
+5. **Extract Medication Overview Payload**: Extract the compact PH4H Medication Overview claim from the HCERT
+
+You will see:
+- ✅ QR code decoded successfully
+- ✅ Medication Overview payload extracted
+- The decoded payload in JSON format
+
+### Step 6.4: Verify the COSE Signature
+
+The test will verify the cryptographic signature of the HCERT:
+
+**Verification parameters**:
+- **Environment**: DEV (development trustlist)
+- **Domain**: PH4H
+- **Usage**: DSC (Document Signer Certificate)
+- **DID Proof Verification**: Enabled
+
+You will see:
+- ✅ HTTP Status: 200
+- ✅ Signature Valid: true
+- KID (Key Identifier) details and the number of trust anchor candidates tried
+
+### Step 6.5: Install Required Implementation Guides
+
+The test will automatically load the required FHIR Implementation Guides into the FHIR validator:
+
+**Implementation Guides installed**:
+- SMART PH4H Implementation Guide (MeOW-r4 branch)
+- IHE Pharmacy MEOW Implementation Guide
+
+You will see:
+- ✅ IGs loaded into the FHIR validator
+- ✅ StructureMaps and validation profiles available
+
+This step may take several minutes on the first run while the IGs and their dependencies are downloaded.
+
+### Step 6.6: Transform to MEOW MedicationOverview Bundle
+
+The test will execute a FHIR StructureMap transformation:
+
+**Transformation process**:
+1. Takes the compact Medication Overview payload
+2. Uses the `MedicationOverviewMinToMedicationOverviewBundle` StructureMap
+3. Produces a MEOW MedicationOverview Bundle
+
+You will see:
+- ✅ StructureMap applied: MedicationOverviewMinToMedicationOverviewBundle
+- ✅ MedicationOverview Bundle created
+- The resulting bundle in JSON format
+
+### Step 6.7: Validate the MedicationOverview Bundle
+
+The test will validate the transformed Bundle against the IHE Pharmacy MEOW MedicationOverview profile:
+
+Results shown:
+- ✅ Bundle conforms to the MEOW MedicationOverview profile (zero validation errors expected)
+- Any information messages or warnings
+- Overall validation result: **SUCCESS** or **FAILURE**
+
+### Step 6.8: Review Test Results and Complete
+
+1. Review the complete test execution:
+   - QR code decoding results
+   - Signature verification outcome
+   - Generated MedicationOverview Bundle
+   - Validation outcomes and detailed execution logs
+
+2. Available actions:
+   - **View Bundle**: Inspect the transformed Bundle
+   - **Download Results**: Export as JSON, XML, or PDF
+   - **Export Report**: Generate a comprehensive test report
+
+3. Click **"Finish"** to complete the test session
+
+---
+
+## 7. Running the Generic QR Code Signature Verification Test Case
 
 The Generic QR Code Signature Verification test case validates any HCERT QR code and verifies its cryptographic signature without domain restrictions.
 
-### Step 6.1: Select the Generic QR Code Signature Verification Test Case
+### Step 7.1: Select the Generic QR Code Signature Verification Test Case
 
 1. From your test session, select **"Generic QR Code signature verification test suite"**
 2. Click **"Start Test"** or **"Execute"**
 
-### Step 6.2: Provide the QR Code Image
+### Step 7.2: Provide the QR Code Image
 
 1. You will see a **"QR Code Image"** upload field
 2. Click **"Choose File"** or **"Browse"**
 3. Select a QR code image file (PNG or JPEG format)
-   - Use any HCERT QR code image (VHL, ICVP, or other HCERT formats)
+   - Use any HCERT QR code image (VHL, ICVP, MeOW, or other HCERT formats)
    - Sample files are available in the `test-data/` directory if needed
 4. Click **"Upload"** or the form will auto-submit
 
@@ -417,7 +528,7 @@ The Generic QR Code Signature Verification test case validates any HCERT QR code
 - Extracts the HC1: prefixed HCERT data
 - Prepares for signature verification
 
-### Step 6.3: Decode the QR Code
+### Step 7.3: Decode the QR Code
 
 The test will automatically decode the QR code:
 
@@ -433,7 +544,7 @@ You will see:
 - The COSE structure with protected headers
 - The CWT payload in JSON format
 
-### Step 6.4: Verify the QR Code Signature
+### Step 7.4: Verify the QR Code Signature
 
 The test will verify the cryptographic signature:
 
@@ -459,7 +570,7 @@ You will see:
 - Number of trust anchor candidates tried
 - Detailed verification message
 
-### Step 6.5: Review Verification Results
+### Step 7.5: Review Verification Results
 
 The verification results will show:
 
@@ -477,7 +588,7 @@ The verification results will show:
   - Candidates tried
   - Reason for failure
 
-### Step 6.6: Complete the Test Session
+### Step 7.6: Complete the Test Session
 
 1. Review the complete test execution:
    - QR code decoding results

@@ -317,7 +317,15 @@ def pubkey_from_jwk_ec_p256(jwk_dict: dict):
         try:
             leaf_der = base64.b64decode(x5c[0])
             cert = x509.load_der_x509_certificate(leaf_der)
-            return cert.public_key()
+            pub = cert.public_key()
+            # The GDHCN v2 trustlist aggregates RSA and non-P-256 keys into the
+            # flat list. COSE ES256 (alg -7) only uses EC P-256. Return other key
+            # types as None so they are skipped — otherwise an RSA key reaches the
+            # EC-only _pk_fingerprint(), which raises AttributeError and aborts the
+            # whole key scan (missing every key after the first RSA one).
+            if isinstance(pub, ec.EllipticCurvePublicKey) and isinstance(pub.curve, ec.SECP256R1):
+                return pub
+            return None
         except Exception:
             pass
     
@@ -1302,10 +1310,19 @@ def verify_signature():
             if not any_success and not all_keys:
                 logger.warning("[verify] No trustlists available across domains; 0 keys collected")
 
-            # Prioritize KID match if present
+            # Prioritize KID match if present. Normalise both sides before comparing:
+            # trustlist kids are STANDARD base64 (with '+' '/' and '=' padding) while
+            # the COSE header kid_b64 is URL-SAFE base64 without padding, so a raw
+            # `k == kid_b64` never matches and we silently fall back to scanning every
+            # key. Canonicalising both makes the match hit the right key directly.
             if kid_b64:
-                matches = [(k, pk) for (k, pk) in all_keys if k == kid_b64]
-                nonmatches = [(k, pk) for (k, pk) in all_keys if k != kid_b64]
+                def _norm_kid(s):
+                    return (s or '').replace('-', '+').replace('_', '/').rstrip('=')
+                want = _norm_kid(kid_b64)
+                matches = [(k, pk) for (k, pk) in all_keys if _norm_kid(k) == want]
+                nonmatches = [(k, pk) for (k, pk) in all_keys if _norm_kid(k) != want]
+                if matches:
+                    logger.info(f"[verify] KID match found: {len(matches)} key(s) with kid {kid_b64}")
                 candidates.extend(matches + nonmatches)
             else:
                 candidates.extend(all_keys)
