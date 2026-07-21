@@ -1,5 +1,5 @@
 # WHO-ITB with HCERT Validation
-This is a shareable, pre-configured instance of the Interoperability Test Bed for WHO GDHCN Trust Network purposes, designed for validating HCERTs (Health Certificates) using VHL and ICVP test cases.
+This is a shareable, pre-configured instance of the Interoperability Test Bed for WHO GDHCN Trust Network purposes, designed for validating HCERTs (Health Certificates) using VHL, ICVP, and MeOW (Medication Overview) test cases.
 
 <img width="1143" height="537" alt="{7DBF0C14-EB8D-42D5-9E03-D7452FDA25DF}" src="https://github.com/user-attachments/assets/89d7ce20-80a7-4d2d-a15c-7a5bd2a8934d" />
 
@@ -12,6 +12,7 @@ This is a shareable, pre-configured instance of the Interoperability Test Bed fo
 - Navigating to conformance statements and starting test sessions
 - Running HCERT with VHL test cases
 - Running ICVP test cases
+- Running MeOW (Medication Overview) test cases
 
 ## Table of Contents
 - [Repository contents](#repo-contents)
@@ -35,6 +36,7 @@ As a quick overview, this repository contains:
 + Test suites for HCERT validation:
     + VHL (Verifiable Health Link) test suite
     + ICVP (International Certificate of Vaccination and Prophylaxis) test suite
+    + MeOW (Medication Overview) test suite
     + Generic QR Code Signature Verification test suite
     
 ## Prerequisites
@@ -64,6 +66,7 @@ As a quick overview, this repository contains:
    - FHIR Server (HAPI) at http://localhost:8080
    - MatchBox at http://localhost:8087
    - SMART Helper at http://localhost:8000
+   - FHIR Validator at http://localhost:8088 (used by the MeOW test suite)
 
 3. Go to http://localhost:10003 in your browser.
 
@@ -76,7 +79,7 @@ As a quick overview, this repository contains:
 
 ## HCERT Test Cases
 
-This repository includes test suites for HCERT (Health Certificate) validation covering three main scenarios:
+This repository includes test suites for HCERT (Health Certificate) validation covering four main scenarios:
 
 ### Test Suite 1: VHL (Verifiable Health Link)
 **Test Case**: Track 1 - System Utilizes and Validates HCERT: VHL
@@ -99,7 +102,18 @@ This test validates:
 4. **FHIR Transformation**: Transform ICVP claim to IPS Bundle using StructureMap
 5. **Validation**: Validate the transformed IPS Bundle against the IPS profile
 
-### Test Suite 3: Generic QR Code Signature Verification
+### Test Suite 3: MeOW (Medication Overview)
+**Test Case**: Track 3 - HCERT PH4H — QR to MEOW MedicationOverview Bundle
+
+This test validates:
+1. **QR Code Decoding**: Decode QR code image to HC1 string
+2. **HCERT Decoding**: Base45 decode, ZLIB decompress, and extract the compact PH4H Medication Overview payload from the CWT
+3. **Signature Verification**: Verify the COSE signature against the GDHCN trust network (PH4H domain)
+4. **Implementation Guide Installation**: Load the SMART PH4H and IHE Pharmacy MEOW IGs into the FHIR validator
+5. **FHIR Transformation**: Transform the payload to a MEOW MedicationOverview Bundle using the `MedicationOverviewMinToMedicationOverviewBundle` StructureMap
+6. **Validation**: Validate the transformed Bundle against the IHE Pharmacy MEOW MedicationOverview profile
+
+### Test Suite 4: Generic QR Code Signature Verification
 **Test Case**: Generic QR Code signature verification test suite
 
 This test validates:
@@ -156,6 +170,9 @@ docker-compose up --build
    
    # Check SMART helper
    curl http://localhost:8000/health
+   
+   # Check FHIR validator (MeOW test suite)
+   curl http://localhost:8088
    ```
 
 ### Executing Test Cases
@@ -182,6 +199,13 @@ docker-compose up --build
    - Click "Test" or "Create Test Session"
    - Upload an ICVP QR code image
    - Wait for IG installation and transformation (may take 30-60 seconds)
+   - Review the validation results
+
+6. **Run MeOW Test Case**:
+   - Select "HCERT PH4H — QR to MEOW MedicationOverview Bundle" (Track 3)
+   - Click "Test" or "Create Test Session"
+   - Upload a MeOW QR code image (e.g., `test-data/Track3_MeOW_2026.jpg`)
+   - Wait for signature verification, IG installation, transformation and validation (the first run may take several minutes while the IGs are downloaded)
    - Review the validation results
 
 For detailed step-by-step instructions, see the **[User Guide](USER_GUIDE.md)**.
@@ -225,6 +249,7 @@ Users are set up with temporary passwords, you need to change it immediately aft
 - **SMART Helper**: Python-based service for FHIR transformation using StructureMaps
 - **MatchBox**: FHIR validation server with IG support
 - **HAPI FHIR Server**: General-purpose FHIR server for resource storage
+- **FHIR Validator**: HL7 FHIR validator (validator_cli in server mode) that handles IG loading, StructureMap transformation, and profile validation for the MeOW test suite
 - **Test Cases**: XML-based test definitions following GITB TDL specifications
 
 ### Data Flow
@@ -245,6 +270,15 @@ Users are set up with temporary passwords, you need to change it immediately aft
 4. **Transformation**: SMART helper transforms ICVP claim to IPS Bundle via StructureMap
 5. **Validation**: MatchBox validates the transformed bundle against IPS profile
 6. **Report Generation**: ITB generates comprehensive test report
+
+#### MeOW Test Flow
+1. **QR Code Upload**: User uploads MeOW QR code image via ITB UI
+2. **HCERT Decoding**: GDHCN helper decodes HC1 string and extracts the compact Medication Overview payload
+3. **Signature Verification**: GDHCN helper verifies the COSE signature against the GDHCN trust network (PH4H domain)
+4. **IG Installation**: FHIR validator loads the SMART PH4H and IHE Pharmacy MEOW IGs
+5. **Transformation**: FHIR validator transforms the payload to a MEOW MedicationOverview Bundle via StructureMap
+6. **Validation**: FHIR validator validates the Bundle against the MEOW MedicationOverview profile
+7. **Report Generation**: ITB generates comprehensive test report
 
 ## Configuration Management
 
@@ -282,7 +316,7 @@ services:
 ### Domain Configuration
 The ITB is configured with HCERT-specific domain settings:
 - **Domain**: WHO HCERT Validation
-- **Test Suites**: VHL and ICVP validation
+- **Test Suites**: VHL, ICVP, and MeOW validation, plus generic QR code signature verification
 - **Test Data**: Pre-loaded sample data in `test-data/` directory
 
 ## Troubleshooting
