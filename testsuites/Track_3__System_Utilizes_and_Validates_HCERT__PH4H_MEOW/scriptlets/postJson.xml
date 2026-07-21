@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scriptlet id="postJson"
+            xmlns="http://www.gitb.com/tdl/v1/"
+            xmlns:gitb="http://www.gitb.com/core/v1/">
+  <!--
+    Reusable scriptlet: POST a JSON body to a handler endpoint.
+    Inputs:
+      uri         — target URI
+      body        — the JSON body string
+      desc        — step description
+    The send result "response" is available via the call's output attribute.
+  -->
+  <params>
+    <var name="uri" type="string"/>
+    <var name="body" type="string"/>
+    <var name="desc" type="string"/>
+  </params>
+  <steps>
+    <assign to="hdrs{Content-Type}">"application/json"</assign>
+    <send id="response" desc="$desc" handler="HttpMessagingV2">
+      <input name="uri">$uri</input>
+      <input name="method">"POST"</input>
+      <input name="headers">$hdrs</input>
+      <input name="body">$body</input>
+    </send>
+  </steps>
+</scriptlet>

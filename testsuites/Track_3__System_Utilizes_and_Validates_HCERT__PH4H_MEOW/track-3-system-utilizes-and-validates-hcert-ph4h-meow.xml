@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite id="track-3-system-utilizes-and-validates-hcert-ph4h-meow"
+           xmlns="http://www.gitb.com/tdl/v1/"
+           xmlns:gitb="http://www.gitb.com/core/v1/">
+  <metadata>
+    <gitb:name>Track 3: System Utilizes and Validates HCERT: PH4H MEOW</gitb:name>
+    <gitb:version>1.0</gitb:version>
+    <gitb:description>Validates QR code, transforms and validates PH4H MEOW MedicationOverview Bundle.</gitb:description>
+  </metadata>
+
+  <actors>
+    <gitb:actor id="User">
+      <gitb:name>User</gitb:name>
+    </gitb:actor>
+    <gitb:actor id="HCertDecoder">
+      <gitb:name>HCertDecoder</gitb:name>
+      <gitb:desc>Endpoint: http://hcert-validator:8080</gitb:desc>
+    </gitb:actor>
+    <gitb:actor id="FHIRValidator">
+      <gitb:name>FHIRValidator</gitb:name>
+      <gitb:desc>Endpoint: http://fhir-validator:8080</gitb:desc>
+    </gitb:actor>
+  </actors>
+
+  <testcase id="tc-ph4h-qr-001-qr-decode-transform-meow-conformance"/>
+
+</testsuite>

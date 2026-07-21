@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scriptlet id="serializeJsonObject"
+           xmlns="http://www.gitb.com/tdl/v1/"
+           xmlns:gitb="http://www.gitb.com/core/v1/">
+  <!--
+    Serialize any value (map / list / scalar) to a JSON string.
+
+    Why this exists:
+      ITB's JsonPointerProcessor returns Map/List objects for non-scalar
+      pointer targets. Coercing those into type="string" via toString() or
+      embedding them in a Freemarker template with ${var} calls Java's
+      Map.toString / List.toString, producing `{key=value}` — which is NOT
+      valid JSON. Every downstream POST body that embeds such a value blows
+      up on the server side.
+
+      This scriptlet uses Freemarker's type introspection (?is_hash /
+      ?is_sequence / ?is_string / ?is_number / ?is_boolean) plus ?json_string
+      escaping to walk the value tree and emit RFC 8259 JSON.
+
+    Contract:
+      input  — any value (hash / sequence / string / number / boolean / null)
+      output — jsonString: the JSON string form, safe to embed in a template
+               like `"foo": ${jsonString}` or send as-is as a request body.
+
+    Compatibility note:
+      Depends on ITB's TemplateProcessor passing the `parameters` map to
+      Freemarker as a native hash (not toString'd). This is the default
+      behaviour in the GITB reference implementation as of 1.19+; if a
+      deployment stringifies parameters before templating, this scriptlet
+      returns the toString form and the caller sees the same broken output.
+      In that case, fall back to per-field concat() at the call site.
+  -->
+  <params>
+    <var name="input" type="map"/>
+  </params>
+  <steps>
+    <assign to="serializeParams{input}">$input</assign>
+    <process handler="TemplateProcessor" operation="process" output="jsonString">
+      <input name="syntax">"freemarker"</input>
+      <input name="template">'&lt;#macro toJson v&gt;&lt;#if !v??&gt;null&lt;#return&gt;&lt;/#if&gt;&lt;#if v?is_boolean&gt;${v?c}&lt;#elseif v?is_number&gt;${v?c}&lt;#elseif v?is_string&gt;"${v?json_string}"&lt;#elseif v?is_hash&gt;{&lt;#list v?keys as k&gt;"${k?json_string}":&lt;@toJson v=v[k]/&gt;&lt;#sep&gt;,&lt;/#list&gt;}&lt;#elseif v?is_sequence&gt;[&lt;#list v as item&gt;&lt;@toJson v=item/&gt;&lt;#sep&gt;,&lt;/#list&gt;]&lt;#else&gt;"${v?string?json_string}"&lt;/#if&gt;&lt;/#macro&gt;&lt;@toJson v=input/&gt;'</input>
+      <input name="parameters">$serializeParams</input>
+    </process>
+  </steps>
+  <output name="jsonString">$jsonString</output>
+</scriptlet>
