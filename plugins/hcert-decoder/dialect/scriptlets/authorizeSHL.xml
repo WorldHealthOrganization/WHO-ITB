@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scriptlet id="authorizeSHL"
+            xmlns="http://www.gitb.com/tdl/v1/"
+            xmlns:gitb="http://www.gitb.com/core/v1/">
+  <!--
+    Reusable scriptlet: Authorize a SMART Health Link with optional PIN.
+    Uses TemplateProcessor + freemarker to safely escape URL and PIN values.
+    Inputs:
+      uri    — the /shlink/authorize endpoint URI
+      url    — the shlink URL to authorize
+      pin    — the PIN value (may be empty for no-PIN flow)
+      desc   — step description
+    The send result "response" is available via the call's output attribute.
+  -->
+  <params>
+    <var name="uri" type="string"/>
+    <var name="url" type="string"/>
+    <var name="pin" type="string"/>
+    <var name="desc" type="string"/>
+  </params>
+  <steps>
+    <!-- Build freemarker parameters -->
+    <assign to="authParams{url}">$url</assign>
+    <assign to="authParams{pin}">$pin</assign>
+
+    <!-- Template with proper JSON escaping via freemarker -->
+    <assign to="authTpl">'{"url":"${url?string?replace("\\","\\\\")
+?replace("\"","\\\"")}", "pin":"${pin?string?trim
+?replace("\\","\\\\")
+?replace("\"","\\\"")}"}'</assign>
+
+    <process handler="TemplateProcessor" operation="process" output="authBody">
+      <input name="syntax">"freemarker"</input>
+      <input name="template">$authTpl</input>
+      <input name="parameters">$authParams</input>
+    </process>
+
+    <!-- Send -->
+    <assign to="hdrs{Content-Type}">"application/json"</assign>
+    <send id="response" desc="$desc" handler="HttpMessagingV2">
+      <input name="uri">$uri</input>
+      <input name="method">"POST"</input>
+      <input name="headers">$hdrs</input>
+      <input name="body">$authBody</input>
+    </send>
+  </steps>
+</scriptlet>

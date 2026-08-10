@@ -1,0 +1,1326 @@
+# Language extension for FHIR Validator component
+# Uses direct HTTP calls to the GITB-compatible REST API at /itb/*
+# Expression and resource are always in the POST body — no URL encoding issues.
+id: fhir-validator
+name: FHIR Validator Steps
+description: >
+  Steps for FHIR resource validation, FHIRPath evaluation,
+  matchetype comparison, and test data generation.
+  Uses the GITB-compatible REST API on the FHIR Validator.
+
+steps:
+  # ==================================================================
+  # PACKAGE LOADING (IG)
+  # ==================================================================
+
+  # <Actor> is loaded with package "<package>" — loads an IG via IGManager Processing Service
+  # GITB shape: POST /itb/igManager/process with {operation:"loadIG", input:[AnyContent]}
+  - match: '^([A-Za-z][A-Za-z0-9_]*) is loaded with package "?(\S+?)"?$'
+    actions:
+      - assign:
+          to: 'fhirValidatorHeaders{Content-Type}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirValidatorHeaders{Accept}'
+          value: '"application/json"'
+      - assign:
+          to: 'loadIgTplParams{ig}'
+          value: '"$2"'
+      - process:
+          handler: 'TemplateProcessor'
+          operation: 'process'
+          output: 'loadIgBody'
+          inputs:
+            syntax: '"freemarker"'
+            template: "'{ \"operation\": \"loadIG\", \"input\": [ { \"name\": \"ig\", \"value\": \"${ig}\", \"embeddingMethod\": \"STRING\" } ] }'"
+            parameters: '$loadIgTplParams'
+      - send:
+          id: 'lastRequest'
+          desc: 'Load IG via IGManager'
+          handler: 'HttpMessagingV2'
+          to: '$1'
+          inputs:
+            uri: 'concat($$1Base, "/itb/igManager/process")'
+            method: '"POST"'
+            headers: '$fhirValidatorHeaders'
+            body: '$loadIgBody'
+      - verify:
+          handler: 'NumberValidator'
+          desc: 'IGManager.loadIG returned HTTP 200'
+          inputs:
+            actualnumber: '$lastRequest{response}{status}'
+            expectednumber: '"200"'
+
+  # ==================================================================
+  # VALIDATION
+  # ==================================================================
+  # Documentation syntax:
+  #   validate "<resource>" against "<profiles>" [with best practice "<level>"] [with resource id "<rule>"]
+  # Always produces:
+  #   $validationOutcome  — raw OperationOutcome JSON
+  #   $validationErrors   — count of error-level issues (string)
+  #   $validationWarnings — count of warning-level issues (string)
+  #   $validationSeverity — highest severity across all issues
+
+  # Validate with best practice warnings
+  - match: '^validate "([^"]+)" against "([^"]+)" with best practice "([^"]+)"$'
+    actions:
+      - assign:
+          to: 'fhirValidatorHeaders{Content-Type}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirValidatorHeaders{Accept}'
+          value: '"application/json"'
+      - assign:
+          to: 'validateTplParams{resource}'
+          value: '$$1'
+      - assign:
+          to: 'validateTplParams{profiles}'
+          value: '"$2"'
+      - assign:
+          to: 'validateTplParams{bpWarnings}'
+          value: '"$3"'
+      - process:
+          handler: 'TemplateProcessor'
+          operation: 'process'
+          output: 'validateBody'
+          inputs:
+            syntax: '"freemarker"'
+            template: "'{ \"operation\": \"validate\", \"inputs\": { \"resource\": \"${resource?json_string}\", \"profiles\": \"${profiles}\", \"bpWarnings\": \"${bpWarnings}\" } }'"
+            parameters: '$validateTplParams'
+      - send:
+          id: 'lastRequest'
+          desc: 'Validate resource against profile'
+          handler: 'HttpMessagingV2'
+          inputs:
+            uri: 'concat($FHIRValidatorBase, "/itb/fhir/process")'
+            method: '"POST"'
+            headers: '$fhirValidatorHeaders'
+            body: '$validateBody'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: 'validationOutcome'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/outcome"'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: 'validationErrors'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/errors"'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: 'validationWarnings'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/warnings"'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: 'validationSeverity'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/severity"'
+
+  # Validate with resource ID rule
+  - match: '^validate "([^"]+)" against "([^"]+)" with resource id "([^"]+)"$'
+    actions:
+      - assign:
+          to: 'fhirValidatorHeaders{Content-Type}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirValidatorHeaders{Accept}'
+          value: '"application/json"'
+      - assign:
+          to: 'validateTplParams{resource}'
+          value: '$$1'
+      - assign:
+          to: 'validateTplParams{profiles}'
+          value: '"$2"'
+      - assign:
+          to: 'validateTplParams{resourceIdRule}'
+          value: '"$3"'
+      - process:
+          handler: 'TemplateProcessor'
+          operation: 'process'
+          output: 'validateBody'
+          inputs:
+            syntax: '"freemarker"'
+            template: "'{ \"operation\": \"validate\", \"inputs\": { \"resource\": \"${resource?json_string}\", \"profiles\": \"${profiles}\", \"resourceIdRule\": \"${resourceIdRule}\" } }'"
+            parameters: '$validateTplParams'
+      - send:
+          id: 'lastRequest'
+          desc: 'Validate resource against profile'
+          handler: 'HttpMessagingV2'
+          inputs:
+            uri: 'concat($FHIRValidatorBase, "/itb/fhir/process")'
+            method: '"POST"'
+            headers: '$fhirValidatorHeaders'
+            body: '$validateBody'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: 'validationOutcome'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/outcome"'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: 'validationErrors'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/errors"'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: 'validationWarnings'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/warnings"'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: 'validationSeverity'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/severity"'
+
+  # Validate (basic — no extra parameters)
+  # GITB Validation Service: POST /itb/fhir/validate with {input:[AnyContent]}
+  # Response: {report: TAR}; the validator publishes hidden context items
+  # at /report/context indices 0..3 (errorCount, warningCount, informationCount, severity),
+  # then operationOutcome at index 4 and (when includeContentInReport) content at index 5.
+  - match: '^validate "([^"]+)" against "([^"]+)"$'
+    actions:
+      - assign:
+          to: 'fhirValidatorHeaders{Content-Type}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirValidatorHeaders{Accept}'
+          value: '"application/json"'
+      - assign:
+          to: 'validateTplParams{resource}'
+          value: '$$1'
+      - assign:
+          to: 'validateTplParams{profiles}'
+          value: '"$2"'
+      - process:
+          handler: 'TemplateProcessor'
+          operation: 'process'
+          output: 'validateBody'
+          inputs:
+            syntax: '"freemarker"'
+            template: "'{ \"input\": [ { \"name\": \"contentToValidate\", \"value\": \"${resource?json_string}\", \"embeddingMethod\": \"STRING\" }, { \"name\": \"profiles\", \"value\": \"${profiles}\", \"embeddingMethod\": \"STRING\" } ] }'"
+            parameters: '$validateTplParams'
+      - send:
+          id: 'lastRequest'
+          desc: 'Validate resource against profile'
+          handler: 'HttpMessagingV2'
+          inputs:
+            uri: 'concat($FHIRValidatorBase, "/itb/fhir/validate")'
+            method: '"POST"'
+            headers: '$fhirValidatorHeaders'
+            body: '$validateBody'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: 'validationErrors'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/report/context/0/value"'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: 'validationWarnings'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/report/context/1/value"'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: 'validationSeverity'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/report/context/3/value"'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: 'validationOutcome'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/report/context/4/value"'
+
+  # --- Validation result assertions ---
+
+  - match: '^the validation should pass$'
+    actions:
+      - verify:
+          handler: 'StringValidator'
+          desc: 'No validation errors'
+          inputs:
+            actualstring: '$validationErrors'
+            expectedstring: '"0"'
+
+  - match: '^the validation should fail$'
+    actions:
+      - verify:
+          handler: 'NumberValidator'
+          desc: 'At least one validation error'
+          inputs:
+            actualnumber: '$validationErrors'
+            expectednumber: '0'
+            operation: '"greater_than"'
+
+  # "<var>" should be a valid <Type> resource
+  # Validates the resource against the base FHIR profile for the given type
+  # (http://hl7.org/fhir/StructureDefinition/<Type>) and asserts no errors.
+  - match: '^"([^"]+)" should be a valid (\S+) resource$'
+    actions:
+      - assign:
+          to: 'fhirValidatorHeaders{Content-Type}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirValidatorHeaders{Accept}'
+          value: '"application/json"'
+      - assign:
+          to: 'validateTplParams{resource}'
+          value: '$$1'
+      - assign:
+          to: 'validateTplParams{resourceType}'
+          value: '"$2"'
+      - process:
+          handler: 'TemplateProcessor'
+          operation: 'process'
+          output: 'validateBody'
+          inputs:
+            syntax: '"freemarker"'
+            template: "'{ \"input\": [ { \"name\": \"contentToValidate\", \"value\": \"${resource?json_string}\", \"embeddingMethod\": \"STRING\" }, { \"name\": \"profiles\", \"value\": \"http://hl7.org/fhir/StructureDefinition/${resourceType}\", \"embeddingMethod\": \"STRING\" } ] }'"
+            parameters: '$validateTplParams'
+      - send:
+          id: 'lastRequest'
+          desc: 'Validate against base FHIR profile for $2'
+          handler: 'HttpMessagingV2'
+          inputs:
+            uri: 'concat($FHIRValidatorBase, "/itb/fhir/validate")'
+            method: '"POST"'
+            headers: '$fhirValidatorHeaders'
+            body: '$validateBody'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: 'validationErrors'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/report/context/0/value"'
+      - verify:
+          handler: 'StringValidator'
+          desc: '$1 is a valid $2 resource'
+          inputs:
+            actualstring: '$validationErrors'
+            expectedstring: '"0"'
+
+  # ==================================================================
+  # FHIRPATH EVALUATION
+  # All steps POST to /itb/fhirPath/process with expression in body.
+  # ==================================================================
+
+  - match: '^evaluate FHIRPath "([^"]+)" on "([^"]+)" and expect "([^"]+)"$'
+    actions:
+      - assign:
+          to: 'fhirValidatorHeaders{Content-Type}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirValidatorHeaders{Accept}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirpathTplParams{resource}'
+          value: '$$2'
+      - assign:
+          to: 'fhirpathTplParams{expression}'
+          value: '"$1"'
+      - process:
+          handler: 'TemplateProcessor'
+          operation: 'process'
+          output: 'fhirpathBody'
+          inputs:
+            syntax: '"freemarker"'
+            template: "'{ \"operation\": \"evaluate\", \"input\": [ { \"name\": \"content\", \"value\": \"${resource?json_string}\", \"embeddingMethod\": \"STRING\" }, { \"name\": \"expression\", \"value\": \"${expression?json_string}\", \"embeddingMethod\": \"STRING\" } ] }'"
+            parameters: '$fhirpathTplParams'
+      - send:
+          id: 'lastRequest'
+          desc: 'Evaluate FHIRPath expression'
+          handler: 'HttpMessagingV2'
+          inputs:
+            uri: 'concat($FHIRValidatorBase, "/itb/fhirPath/process")'
+            method: '"POST"'
+            headers: '$fhirValidatorHeaders'
+            body: '$fhirpathBody'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: 'fhirpathResult'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/0/value"'
+      - verify:
+          handler: 'StringValidator'
+          desc: 'FHIRPath result matches expected value'
+          inputs:
+            actualstring: '$fhirpathResult'
+            expectedstring: '"$3"'
+
+  - match: '^evaluate FHIRPath "([^"]+)" and expect "([^"]+)"$'
+    actions:
+      - assign:
+          to: 'fhirValidatorHeaders{Content-Type}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirValidatorHeaders{Accept}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirpathTplParams{resource}'
+          value: '$submitResult{payload}'
+      - assign:
+          to: 'fhirpathTplParams{expression}'
+          value: '"$1"'
+      - process:
+          handler: 'TemplateProcessor'
+          operation: 'process'
+          output: 'fhirpathBody'
+          inputs:
+            syntax: '"freemarker"'
+            template: "'{ \"operation\": \"evaluate\", \"input\": [ { \"name\": \"content\", \"value\": \"${resource?json_string}\", \"embeddingMethod\": \"STRING\" }, { \"name\": \"expression\", \"value\": \"${expression?json_string}\", \"embeddingMethod\": \"STRING\" } ] }'"
+            parameters: '$fhirpathTplParams'
+      - send:
+          id: 'lastRequest'
+          desc: 'Evaluate FHIRPath expression'
+          handler: 'HttpMessagingV2'
+          inputs:
+            uri: 'concat($FHIRValidatorBase, "/itb/fhirPath/process")'
+            method: '"POST"'
+            headers: '$fhirValidatorHeaders'
+            body: '$fhirpathBody'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: 'fhirpathResult'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/0/value"'
+      - verify:
+          handler: 'StringValidator'
+          desc: 'FHIRPath result matches expected value'
+          inputs:
+            actualstring: '$fhirpathResult'
+            expectedstring: '"$2"'
+
+  - match: '^evaluate FHIRPath "([^"]+)" on "([^"]+)" as "([A-Za-z_][A-Za-z0-9_]*)"$'
+    actions:
+      - assign:
+          to: 'fhirValidatorHeaders{Content-Type}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirValidatorHeaders{Accept}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirpathTplParams{resource}'
+          value: '$$2'
+      - assign:
+          to: 'fhirpathTplParams{expression}'
+          value: '"$1"'
+      - process:
+          handler: 'TemplateProcessor'
+          operation: 'process'
+          output: 'fhirpathBody'
+          inputs:
+            syntax: '"freemarker"'
+            template: "'{ \"operation\": \"evaluate\", \"input\": [ { \"name\": \"content\", \"value\": \"${resource?json_string}\", \"embeddingMethod\": \"STRING\" }, { \"name\": \"expression\", \"value\": \"${expression?json_string}\", \"embeddingMethod\": \"STRING\" } ] }'"
+            parameters: '$fhirpathTplParams'
+      - send:
+          id: 'lastRequest'
+          desc: 'Evaluate FHIRPath expression'
+          handler: 'HttpMessagingV2'
+          inputs:
+            uri: 'concat($FHIRValidatorBase, "/itb/fhirPath/process")'
+            method: '"POST"'
+            headers: '$fhirValidatorHeaders'
+            body: '$fhirpathBody'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: '$3'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/0/value"'
+
+  - match: '^evaluate FHIRPath "([^"]+)" exists$'
+    actions:
+      - assign:
+          to: 'fhirValidatorHeaders{Content-Type}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirValidatorHeaders{Accept}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirpathTplParams{resource}'
+          value: '$submitResult{payload}'
+      - assign:
+          to: 'fhirpathTplParams{expression}'
+          value: '"($1).exists()"'
+      - process:
+          handler: 'TemplateProcessor'
+          operation: 'process'
+          output: 'fhirpathBody'
+          inputs:
+            syntax: '"freemarker"'
+            template: "'{ \"operation\": \"evaluate\", \"inputs\": { \"resource\": \"${resource?json_string}\", \"expression\": \"${expression?json_string}\" } }'"
+            parameters: '$fhirpathTplParams'
+      - send:
+          id: 'lastRequest'
+          desc: 'Evaluate FHIRPath expression'
+          handler: 'HttpMessagingV2'
+          inputs:
+            uri: 'concat($FHIRValidatorBase, "/itb/fhirpath/process")'
+            method: '"POST"'
+            headers: '$fhirValidatorHeaders'
+            body: '$fhirpathBody'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: 'fhirpathResult'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/result"'
+      - verify:
+          handler: 'StringValidator'
+          desc: 'FHIRPath element exists'
+          inputs:
+            actualstring: '$fhirpathResult'
+            expectedstring: '"true"'
+
+  - match: '^evaluate FHIRPath "([^"]+)" count is ([0-9]+)$'
+    actions:
+      - assign:
+          to: 'fhirValidatorHeaders{Content-Type}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirValidatorHeaders{Accept}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirpathTplParams{resource}'
+          value: '$submitResult{payload}'
+      - assign:
+          to: 'fhirpathTplParams{expression}'
+          value: '"($1).count()"'
+      - process:
+          handler: 'TemplateProcessor'
+          operation: 'process'
+          output: 'fhirpathBody'
+          inputs:
+            syntax: '"freemarker"'
+            template: "'{ \"operation\": \"evaluate\", \"inputs\": { \"resource\": \"${resource?json_string}\", \"expression\": \"${expression?json_string}\" } }'"
+            parameters: '$fhirpathTplParams'
+      - send:
+          id: 'lastRequest'
+          desc: 'Evaluate FHIRPath expression'
+          handler: 'HttpMessagingV2'
+          inputs:
+            uri: 'concat($FHIRValidatorBase, "/itb/fhirpath/process")'
+            method: '"POST"'
+            headers: '$fhirValidatorHeaders'
+            body: '$fhirpathBody'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: 'fhirpathResult'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/result"'
+      - verify:
+          handler: 'StringValidator'
+          desc: 'FHIRPath count matches'
+          inputs:
+            actualstring: '$fhirpathResult'
+            expectedstring: '"$2"'
+
+  # ==================================================================
+  # MATCHETYPE COMPARISON
+  # ==================================================================
+
+  # "<var>" matches pattern: (docstring with matchetype JSON)
+  # Posts to /itb/matchetype/validate. Asserts TAR result is SUCCESS.
+  - match: '^"([^"]+)" matches pattern:$'
+    actions:
+      - assign:
+          to: 'fhirValidatorHeaders{Content-Type}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirValidatorHeaders{Accept}'
+          value: '"application/json"'
+      - assign:
+          to: 'matchTplParams{resource}'
+          value: '$$1'
+      - assign:
+          to: 'matchTplParams{matchetype}'
+          value: "'$docString'"
+      - process:
+          handler: 'TemplateProcessor'
+          operation: 'process'
+          output: 'matchBody'
+          inputs:
+            syntax: '"freemarker"'
+            template: "'{ \"input\": [ { \"name\": \"contentToValidate\", \"value\": \"${resource?json_string}\", \"embeddingMethod\": \"STRING\" }, { \"name\": \"matchetype\", \"value\": \"${matchetype?json_string}\", \"embeddingMethod\": \"STRING\" } ] }'"
+            parameters: '$matchTplParams'
+      - send:
+          id: 'lastRequest'
+          desc: 'Matchetype validate'
+          handler: 'HttpMessagingV2'
+          inputs:
+            uri: 'concat($FHIRValidatorBase, "/itb/matchetype/validate")'
+            method: '"POST"'
+            headers: '$fhirValidatorHeaders'
+            body: '$matchBody'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: 'matchResult'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/report/result"'
+      - verify:
+          handler: 'StringValidator'
+          desc: 'Matchetype comparison succeeded'
+          inputs:
+            actualstring: '$matchResult'
+            expectedstring: '"SUCCESS"'
+
+  # "<var>" does not match pattern: (docstring with matchetype JSON)
+  - match: '^"([^"]+)" does not match pattern:$'
+    actions:
+      - assign:
+          to: 'fhirValidatorHeaders{Content-Type}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirValidatorHeaders{Accept}'
+          value: '"application/json"'
+      - assign:
+          to: 'matchTplParams{resource}'
+          value: '$$1'
+      - assign:
+          to: 'matchTplParams{matchetype}'
+          value: "'$docString'"
+      - process:
+          handler: 'TemplateProcessor'
+          operation: 'process'
+          output: 'matchBody'
+          inputs:
+            syntax: '"freemarker"'
+            template: "'{ \"input\": [ { \"name\": \"contentToValidate\", \"value\": \"${resource?json_string}\", \"embeddingMethod\": \"STRING\" }, { \"name\": \"matchetype\", \"value\": \"${matchetype?json_string}\", \"embeddingMethod\": \"STRING\" } ] }'"
+            parameters: '$matchTplParams'
+      - send:
+          id: 'lastRequest'
+          desc: 'Matchetype validate (expect mismatch)'
+          handler: 'HttpMessagingV2'
+          inputs:
+            uri: 'concat($FHIRValidatorBase, "/itb/matchetype/validate")'
+            method: '"POST"'
+            headers: '$fhirValidatorHeaders'
+            body: '$matchBody'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: 'matchResult'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/report/result"'
+      - verify:
+          handler: 'StringValidator'
+          desc: 'Matchetype comparison reported mismatch'
+          inputs:
+            actualstring: '$matchResult'
+            expectedstring: '"FAILURE"'
+
+  # =========================================================================
+  # FHIRPATH ASSERTION (validation service: TAR pass/fail)
+  # =========================================================================
+  # assert FHIRPath "<expression>" on "<resource>"
+  - match: '^assert FHIRPath "([^"]+)" on "([A-Za-z_][A-Za-z0-9_]*)"$'
+    actions:
+      - assign:
+          to: 'fhirValidatorHeaders{Content-Type}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirValidatorHeaders{Accept}'
+          value: '"application/json"'
+      - assign:
+          to: 'assertTplParams{resource}'
+          value: '$$2'
+      - assign:
+          to: 'assertTplParams{expression}'
+          value: '"$1"'
+      - process:
+          handler: 'TemplateProcessor'
+          operation: 'process'
+          output: 'assertBody'
+          inputs:
+            syntax: '"freemarker"'
+            template: "'{ \"input\": [ { \"name\": \"contentToValidate\", \"value\": \"${resource?json_string}\", \"embeddingMethod\": \"STRING\" }, { \"name\": \"expression\", \"value\": \"${expression?json_string}\", \"embeddingMethod\": \"STRING\" } ] }'"
+            parameters: '$assertTplParams'
+      - send:
+          id: 'lastRequest'
+          desc: 'FHIRPath assertion'
+          handler: 'HttpMessagingV2'
+          inputs:
+            uri: 'concat($FHIRValidatorBase, "/itb/fhirPathAssertion/validate")'
+            method: '"POST"'
+            headers: '$fhirValidatorHeaders'
+            body: '$assertBody'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: 'assertResult'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/report/result"'
+      - verify:
+          handler: 'StringValidator'
+          desc: 'FHIRPath assertion succeeded'
+          inputs:
+            actualstring: '$assertResult'
+            expectedstring: '"SUCCESS"'
+
+  # =========================================================================
+  # VALIDATION RESULTS PROCESSOR (summarize OperationOutcome)
+  # =========================================================================
+  # summarize "<outcomeVar>" as "<errorsVar>" "<warningsVar>" "<infosVar>"
+  - match: '^summarize "([A-Za-z_][A-Za-z0-9_]*)" as "([A-Za-z_][A-Za-z0-9_]*)" "([A-Za-z_][A-Za-z0-9_]*)" "([A-Za-z_][A-Za-z0-9_]*)"$'
+    actions:
+      - assign:
+          to: 'fhirValidatorHeaders{Content-Type}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirValidatorHeaders{Accept}'
+          value: '"application/json"'
+      - assign:
+          to: 'summarizeTplParams{outcome}'
+          value: '$$1'
+      - process:
+          handler: 'TemplateProcessor'
+          operation: 'process'
+          output: 'summarizeBody'
+          inputs:
+            syntax: '"freemarker"'
+            template: "'{ \"operation\": \"summarize\", \"input\": [ { \"name\": \"outcome\", \"value\": \"${outcome?json_string}\", \"embeddingMethod\": \"STRING\" } ] }'"
+            parameters: '$summarizeTplParams'
+      - send:
+          id: 'lastRequest'
+          desc: 'Summarize OperationOutcome'
+          handler: 'HttpMessagingV2'
+          inputs:
+            uri: 'concat($FHIRValidatorBase, "/itb/validationResults/process")'
+            method: '"POST"'
+            headers: '$fhirValidatorHeaders'
+            body: '$summarizeBody'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: '$2'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/0/value"'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: '$3'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/1/value"'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: '$4'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/2/value"'
+
+  # ==================================================================
+  # TEST DATA GENERATION
+  # ==================================================================
+
+  - match: '^generate test data from profile "([^"]+)"$'
+    actions:
+      - assign:
+          to: 'fhirValidatorHeaders{Content-Type}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirValidatorHeaders{Accept}'
+          value: '"application/json"'
+      - send:
+          id: 'lastRequest'
+          desc: 'Generate test data from profile'
+          handler: 'HttpMessagingV2'
+          inputs:
+            uri: 'concat($FHIRValidatorBase, "/itb/testdata/process")'
+            method: '"POST"'
+            headers: '$fhirValidatorHeaders'
+            body: "concat('{\"operation\":\"generate\",\"input\":[{\"name\":\"profile\",\"value\":\"', \"$1\", '\",\"embeddingMethod\":\"STRING\"}]}')"
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: 'generatedResource'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/0/value"'
+
+  - match: '^generate test data from profile "([^"]+)" as "([A-Za-z_][A-Za-z0-9_]*)"$'
+    actions:
+      - assign:
+          to: 'fhirValidatorHeaders{Content-Type}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirValidatorHeaders{Accept}'
+          value: '"application/json"'
+      - send:
+          id: 'lastRequest'
+          desc: 'Generate test data from profile'
+          handler: 'HttpMessagingV2'
+          inputs:
+            uri: 'concat($FHIRValidatorBase, "/itb/testdata/process")'
+            method: '"POST"'
+            headers: '$fhirValidatorHeaders'
+            body: "concat('{\"operation\":\"generate\",\"input\":[{\"name\":\"profile\",\"value\":\"', \"$1\", '\",\"embeddingMethod\":\"STRING\"}]}')"
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: '$2'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/0/value"'
+
+  # generate required test data from profile "<url>"
+  - match: '^generate required test data from profile "([^"]+)"$'
+    actions:
+      - assign:
+          to: 'fhirValidatorHeaders{Content-Type}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirValidatorHeaders{Accept}'
+          value: '"application/json"'
+      - send:
+          id: 'lastRequest'
+          desc: 'Generate required-only test data from profile'
+          handler: 'HttpMessagingV2'
+          inputs:
+            uri: 'concat($FHIRValidatorBase, "/itb/testdata/process")'
+            method: '"POST"'
+            headers: '$fhirValidatorHeaders'
+            body: "concat('{\"operation\":\"generate\",\"input\":[{\"name\":\"profile\",\"value\":\"', \"$1\", '\",\"embeddingMethod\":\"STRING\"},{\"name\":\"requiredOnly\",\"value\":\"true\",\"embeddingMethod\":\"STRING\"}]}')"
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: 'generatedResource'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/0/value"'
+
+  # generate required test data as "<var>" from profile "<url>"
+  - match: '^generate required test data as "([A-Za-z_][A-Za-z0-9_]*)" from profile "([^"]+)"$'
+    actions:
+      - assign:
+          to: 'fhirValidatorHeaders{Content-Type}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirValidatorHeaders{Accept}'
+          value: '"application/json"'
+      - send:
+          id: 'lastRequest'
+          desc: 'Generate required-only test data from profile'
+          handler: 'HttpMessagingV2'
+          inputs:
+            uri: 'concat($FHIRValidatorBase, "/itb/testdata/process")'
+            method: '"POST"'
+            headers: '$fhirValidatorHeaders'
+            body: "concat('{\"operation\":\"generate\",\"input\":[{\"name\":\"profile\",\"value\":\"', \"$2\", '\",\"embeddingMethod\":\"STRING\"},{\"name\":\"requiredOnly\",\"value\":\"true\",\"embeddingMethod\":\"STRING\"}]}')"
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: '$1'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/0/value"'
+
+  # generate required test data as "<var>" from profile "<url>" with values:
+  #   | path | value | system | code |
+  #   | Patient.id                               | smoke-test-id  |                          |         |
+  #   | AllergyIntolerance.code.coding           |                | http://snomed.info/sct   | 1232123 |
+  #   | AllergyIntolerance.clinicalStatus.coding |                | http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical | active |
+  # Per row: if "value" is non-empty -> primitive mapping; else -> Coding mapping with system+code.
+  - match: '^generate required test data as "([A-Za-z_][A-Za-z0-9_]*)" from profile "([^"]+)" with values:$'
+    table:
+      required: [path]
+    actions:
+      - assign:
+          to: 'fhirValidatorHeaders{Content-Type}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirValidatorHeaders{Accept}'
+          value: '"application/json"'
+      - assign:
+          to: 'mappingsJson'
+          value: '"["'
+      - foreach:
+          from: '$tableRows'
+          do:
+            - assign:
+                to: 'entryTplParams{path}'
+                value: '"$row.path"'
+            - assign:
+                to: 'entryTplParams{value}'
+                value: '"$row.value"'
+            - assign:
+                to: 'entryTplParams{system}'
+                value: '"$row.system"'
+            - assign:
+                to: 'entryTplParams{code}'
+                value: '"$row.code"'
+            - assign:
+                to: 'entryTplParams{accum}'
+                value: '$mappingsJson'
+            - process:
+                handler: 'TemplateProcessor'
+                operation: 'process'
+                output: 'mappingsJson'
+                inputs:
+                  syntax: '"freemarker"'
+                  template: "'${accum}<#if accum?ends_with(\"[\")><#else>,</#if>{\"path\":\"${path}\",<#if value?has_content>\"value\":\"${value}\"<#else>\"parts\":[{\"name\":\"system\",\"value\":\"${system}\"},{\"name\":\"code\",\"value\":\"${code}\"}]</#if>}'"
+                  parameters: '$entryTplParams'
+      - assign:
+          to: 'closeTplParams{accum}'
+          value: '$mappingsJson'
+      - process:
+          handler: 'TemplateProcessor'
+          operation: 'process'
+          output: 'mappingsJson'
+          inputs:
+            syntax: '"freemarker"'
+            template: "'${accum}]'"
+            parameters: '$closeTplParams'
+      - assign:
+          to: 'generateTplParams{profile}'
+          value: '"$2"'
+      - assign:
+          to: 'generateTplParams{mappings}'
+          value: '$mappingsJson'
+      - process:
+          handler: 'TemplateProcessor'
+          operation: 'process'
+          output: 'generateBody'
+          inputs:
+            syntax: '"freemarker"'
+            template: "'{ \"operation\": \"generate\", \"input\": [ { \"name\": \"profile\", \"value\": \"${profile}\", \"embeddingMethod\": \"STRING\" }, { \"name\": \"requiredOnly\", \"value\": \"true\", \"embeddingMethod\": \"STRING\" }, { \"name\": \"mappings\", \"value\": \"${mappings?json_string}\", \"embeddingMethod\": \"STRING\" } ] }'"
+            parameters: '$generateTplParams'
+      - send:
+          id: 'lastRequest'
+          desc: 'Generate required-only test data with values'
+          handler: 'HttpMessagingV2'
+          inputs:
+            uri: 'concat($FHIRValidatorBase, "/itb/testdata/process")'
+            method: '"POST"'
+            headers: '$fhirValidatorHeaders'
+            body: '$generateBody'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: '$1'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/0/value"'
+
+  # generate required test data from profile "<url>" with mappings "<mappingsVar>" as "<var>"
+  - match: '^generate required test data from profile "([^"]+)" with mappings "([A-Za-z_][A-Za-z0-9_]*)" as "([A-Za-z_][A-Za-z0-9_]*)"$'
+    actions:
+      - assign:
+          to: 'fhirValidatorHeaders{Content-Type}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirValidatorHeaders{Accept}'
+          value: '"application/json"'
+      - assign:
+          to: 'generateTplParams{profile}'
+          value: '"$1"'
+      - assign:
+          to: 'generateTplParams{mappings}'
+          value: '$$2'
+      - process:
+          handler: 'TemplateProcessor'
+          operation: 'process'
+          output: 'generateBody'
+          inputs:
+            syntax: '"freemarker"'
+            template: "'{ \"operation\": \"generate\", \"input\": [ { \"name\": \"profile\", \"value\": \"${profile}\", \"embeddingMethod\": \"STRING\" }, { \"name\": \"requiredOnly\", \"value\": \"true\", \"embeddingMethod\": \"STRING\" }, { \"name\": \"mappings\", \"value\": \"${mappings?json_string}\", \"embeddingMethod\": \"STRING\" } ] }'"
+            parameters: '$generateTplParams'
+      - send:
+          id: 'lastRequest'
+          desc: 'Generate required-only test data from profile with mappings'
+          handler: 'HttpMessagingV2'
+          inputs:
+            uri: 'concat($FHIRValidatorBase, "/itb/testdata/process")'
+            method: '"POST"'
+            headers: '$fhirValidatorHeaders'
+            body: '$generateBody'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: '$3'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/0/value"'
+
+  - match: '^define mappings "([A-Za-z_][A-Za-z0-9_]*)":$'
+    table:
+      required: [path, expression]
+    actions:
+      - assign:
+          to: '$1'
+          value: []
+      - foreach:
+          from: '$tableRows'
+          do:
+            - listAppend:
+                list: '$1'
+                item:
+                  path: '$row.path'
+                  expression: '$row.expression'
+
+  - match: '^define mappings "([A-Za-z_][A-Za-z0-9_]*)" with parts:$'
+    table:
+      required: [path, part, expression]
+    actions:
+      - assign:
+          to: '$1'
+          value: []
+      - foreach:
+          from: '$tableRows'
+          do:
+            - listAppend:
+                list: '$1'
+                item:
+                  path: '$row.path'
+                  part: '$row.part'
+                  expression: '$row.expression'
+
+  - match: '^define data "([A-Za-z_][A-Za-z0-9_]*)":$'
+    table:
+      required: []
+    actions:
+      - assign:
+          to: '$1'
+          value: []
+      - foreach:
+          from: '$tableRows'
+          do:
+            - listAppend:
+                list: '$1'
+                item: '$row'
+
+  # ----------------------------------------------------------------------
+  # modify "<var>" with operations:
+  #   | op     | path                                  | value      | system | code |
+  #   | set    | AllergyIntolerance.recordedDate       | 2026-04-01 |        |      |
+  #   | set    | AllergyIntolerance.code.coding        |            | http://snomed.info/sct | 1232123 |
+  #   | add    | AllergyIntolerance.note               | text-only  |        |      |
+  #   | remove | AllergyIntolerance.clinicalStatus     |            |        |      |
+  #
+  # Modifies the resource stored in $<var> in place by sending it to
+  # POST /itb/testdata/process with operation=modify. enforce=false (no
+  # post-validation). Per row: if value is non-empty -> primitive write; else
+  # if op != remove -> Coding parts {system, code}. For op=remove, only path
+  # is used.
+  # ----------------------------------------------------------------------
+  - match: '^modify "([A-Za-z_][A-Za-z0-9_]*)" with operations:$'
+    table:
+      required: [op, path]
+    actions:
+      - assign:
+          to: 'fhirValidatorHeaders{Content-Type}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirValidatorHeaders{Accept}'
+          value: '"application/json"'
+      - assign:
+          to: 'opsJson'
+          value: '"["'
+      - foreach:
+          from: '$tableRows'
+          do:
+            - assign:
+                to: 'opTplParams{op}'
+                value: '"$row.op"'
+            - assign:
+                to: 'opTplParams{path}'
+                value: '"$row.path"'
+            - assign:
+                to: 'opTplParams{value}'
+                value: '"$row.value"'
+            - assign:
+                to: 'opTplParams{system}'
+                value: '"$row.system"'
+            - assign:
+                to: 'opTplParams{code}'
+                value: '"$row.code"'
+            - assign:
+                to: 'opTplParams{accum}'
+                value: '$opsJson'
+            - process:
+                handler: 'TemplateProcessor'
+                operation: 'process'
+                output: 'opsJson'
+                inputs:
+                  syntax: '"freemarker"'
+                  template: "'${accum}<#if accum?ends_with(\"[\")><#else>,</#if>{\"op\":\"${op}\",\"path\":\"${path}\"<#if op != \"remove\"><#if value?has_content>,\"value\":\"${value}\"<#else>,\"parts\":[{\"name\":\"system\",\"value\":\"${system}\"},{\"name\":\"code\",\"value\":\"${code}\"}]</#if></#if>}'"
+                  parameters: '$opTplParams'
+      - assign:
+          to: 'closeOpsTplParams{accum}'
+          value: '$opsJson'
+      - process:
+          handler: 'TemplateProcessor'
+          operation: 'process'
+          output: 'opsJson'
+          inputs:
+            syntax: '"freemarker"'
+            template: "'${accum}]'"
+            parameters: '$closeOpsTplParams'
+      - assign:
+          to: 'modifyTplParams{resource}'
+          value: '$$1'
+      - assign:
+          to: 'modifyTplParams{operations}'
+          value: '$opsJson'
+      - process:
+          handler: 'TemplateProcessor'
+          operation: 'process'
+          output: 'modifyBody'
+          inputs:
+            syntax: '"freemarker"'
+            template: "'{ \"operation\": \"modify\", \"input\": [ { \"name\": \"resource\", \"value\": \"${resource?json_string}\", \"embeddingMethod\": \"STRING\" }, { \"name\": \"operations\", \"value\": \"${operations?json_string}\", \"embeddingMethod\": \"STRING\" }, { \"name\": \"enforce\", \"value\": \"false\", \"embeddingMethod\": \"STRING\" } ] }'"
+            parameters: '$modifyTplParams'
+      - send:
+          id: 'lastRequest'
+          desc: 'Modify resource (no enforcement)'
+          handler: 'HttpMessagingV2'
+          inputs:
+            uri: 'concat($FHIRValidatorBase, "/itb/testdata/process")'
+            method: '"POST"'
+            headers: '$fhirValidatorHeaders'
+            body: '$modifyBody'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: '$1'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/0/value"'
+
+  # ----------------------------------------------------------------------
+  # modify "<var>" against profile "<url>" with operations:
+  #
+  # Same as above but with enforce=true: the validator post-validates the
+  # modified resource against the named profile and returns an OperationOutcome.
+  # The outcome is summarised; if any errors are reported, the step FAILS.
+  # The modified resource is written back to $<var> regardless.
+  # ----------------------------------------------------------------------
+  - match: '^modify "([A-Za-z_][A-Za-z0-9_]*)" against profile "([^"]+)" with operations:$'
+    table:
+      required: [op, path]
+    actions:
+      - assign:
+          to: 'fhirValidatorHeaders{Content-Type}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirValidatorHeaders{Accept}'
+          value: '"application/json"'
+      - assign:
+          to: 'opsJson'
+          value: '"["'
+      - foreach:
+          from: '$tableRows'
+          do:
+            - assign:
+                to: 'opTplParams{op}'
+                value: '"$row.op"'
+            - assign:
+                to: 'opTplParams{path}'
+                value: '"$row.path"'
+            - assign:
+                to: 'opTplParams{value}'
+                value: '"$row.value"'
+            - assign:
+                to: 'opTplParams{system}'
+                value: '"$row.system"'
+            - assign:
+                to: 'opTplParams{code}'
+                value: '"$row.code"'
+            - assign:
+                to: 'opTplParams{accum}'
+                value: '$opsJson'
+            - process:
+                handler: 'TemplateProcessor'
+                operation: 'process'
+                output: 'opsJson'
+                inputs:
+                  syntax: '"freemarker"'
+                  template: "'${accum}<#if accum?ends_with(\"[\")><#else>,</#if>{\"op\":\"${op}\",\"path\":\"${path}\"<#if op != \"remove\"><#if value?has_content>,\"value\":\"${value}\"<#else>,\"parts\":[{\"name\":\"system\",\"value\":\"${system}\"},{\"name\":\"code\",\"value\":\"${code}\"}]</#if></#if>}'"
+                  parameters: '$opTplParams'
+      - assign:
+          to: 'closeOpsTplParams{accum}'
+          value: '$opsJson'
+      - process:
+          handler: 'TemplateProcessor'
+          operation: 'process'
+          output: 'opsJson'
+          inputs:
+            syntax: '"freemarker"'
+            template: "'${accum}]'"
+            parameters: '$closeOpsTplParams'
+      - assign:
+          to: 'modifyTplParams{resource}'
+          value: '$$1'
+      - assign:
+          to: 'modifyTplParams{operations}'
+          value: '$opsJson'
+      - assign:
+          to: 'modifyTplParams{profile}'
+          value: '"$2"'
+      - process:
+          handler: 'TemplateProcessor'
+          operation: 'process'
+          output: 'modifyBody'
+          inputs:
+            syntax: '"freemarker"'
+            template: "'{ \"operation\": \"modify\", \"input\": [ { \"name\": \"resource\", \"value\": \"${resource?json_string}\", \"embeddingMethod\": \"STRING\" }, { \"name\": \"operations\", \"value\": \"${operations?json_string}\", \"embeddingMethod\": \"STRING\" }, { \"name\": \"profile\", \"value\": \"${profile}\", \"embeddingMethod\": \"STRING\" }, { \"name\": \"enforce\", \"value\": \"true\", \"embeddingMethod\": \"STRING\" } ] }'"
+            parameters: '$modifyTplParams'
+      - send:
+          id: 'lastRequest'
+          desc: 'Modify resource (enforce against profile)'
+          handler: 'HttpMessagingV2'
+          inputs:
+            uri: 'concat($FHIRValidatorBase, "/itb/testdata/process")'
+            method: '"POST"'
+            headers: '$fhirValidatorHeaders'
+            body: '$modifyBody'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: '$1'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/0/value"'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: 'modificationOutcome'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/1/value"'
+      - assign:
+          to: 'summarizeTplParams{outcome}'
+          value: '$modificationOutcome'
+      - process:
+          handler: 'TemplateProcessor'
+          operation: 'process'
+          output: 'summarizeBody'
+          inputs:
+            syntax: '"freemarker"'
+            template: "'{ \"operation\": \"summarize\", \"input\": [ { \"name\": \"outcome\", \"value\": \"${outcome?json_string}\", \"embeddingMethod\": \"STRING\" } ] }'"
+            parameters: '$summarizeTplParams'
+      - send:
+          id: 'summarizeRequest'
+          desc: 'Summarise modification OperationOutcome'
+          handler: 'HttpMessagingV2'
+          inputs:
+            uri: 'concat($FHIRValidatorBase, "/itb/validationResults/process")'
+            method: '"POST"'
+            headers: '$fhirValidatorHeaders'
+            body: '$summarizeBody'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: 'modificationErrors'
+          inputs:
+            content: '$summarizeRequest{response}{body}'
+            pointer: '"/output/0/value"'
+      - verify:
+          handler: 'StringValidator'
+          desc: 'Modification produced no validation errors'
+          inputs:
+            actualstring: '$modificationErrors'
+            expectedstring: '"0"'
+
+  # ----------------------------------------------------------------------
+  # define resource "<var>" as:
+  #   """
+  #   <inline JSON / XML resource>
+  #   """
+  #
+  # Stores the docstring contents into a variable so it can be passed to other
+  # steps (validate, transform, modify, etc.) without having to generate it.
+  # ----------------------------------------------------------------------
+  - match: '^define resource "([A-Za-z_][A-Za-z0-9_]*)" as:$'
+    actions:
+      - assign:
+          to: '$1'
+          value: "'$docString'"
+
+  # ----------------------------------------------------------------------
+  # transform "<src>" using map "<url>" as "<target>"
+  #
+  # Applies a FHIR StructureMap to the resource stored in $<src> and stores
+  # the transformed result in $<target>. The StructureMap must be in the
+  # validator's context (load the IG that contains it via "FHIRValidator is
+  # loaded with package ..." first).
+  # ----------------------------------------------------------------------
+  - match: '^transform "([A-Za-z_][A-Za-z0-9_]*)" using map "([^"]+)" as "([A-Za-z_][A-Za-z0-9_]*)"$'
+    actions:
+      - assign:
+          to: 'fhirValidatorHeaders{Content-Type}'
+          value: '"application/json"'
+      - assign:
+          to: 'fhirValidatorHeaders{Accept}'
+          value: '"application/json"'
+      - assign:
+          to: 'transformTplParams{content}'
+          value: '$$1'
+      - assign:
+          to: 'transformTplParams{map}'
+          value: '"$2"'
+      - process:
+          handler: 'TemplateProcessor'
+          operation: 'process'
+          output: 'transformBody'
+          inputs:
+            syntax: '"freemarker"'
+            template: "'{ \"operation\": \"transform\", \"input\": [ { \"name\": \"content\", \"value\": \"${content?json_string}\", \"embeddingMethod\": \"STRING\" }, { \"name\": \"map\", \"value\": \"${map}\", \"embeddingMethod\": \"STRING\" }, { \"name\": \"contentType\", \"value\": \"application/fhir+json\", \"embeddingMethod\": \"STRING\" }, { \"name\": \"targetFormat\", \"value\": \"json\", \"embeddingMethod\": \"STRING\" } ] }'"
+            parameters: '$transformTplParams'
+      - send:
+          id: 'lastRequest'
+          desc: 'Apply StructureMap transformation'
+          handler: 'HttpMessagingV2'
+          inputs:
+            uri: 'concat($FHIRValidatorBase, "/itb/transform/process")'
+            method: '"POST"'
+            headers: '$fhirValidatorHeaders'
+            body: '$transformBody'
+      - process:
+          handler: 'JsonPointerProcessor'
+          operation: 'process'
+          output: '$3'
+          inputs:
+            content: '$lastRequest{response}{body}'
+            pointer: '"/output/0/value"'
+
+  # Extract is provided by core language (en.yml)

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scriptlet id="buildJsonBody"
+            xmlns="http://www.gitb.com/tdl/v1/"
+            xmlns:gitb="http://www.gitb.com/core/v1/">
+  <!--
+    Reusable scriptlet: Build a JSON body from a freemarker template + parameters.
+    Inputs:
+      template   — freemarker template string
+      parameters — map variable with substitution values
+    The process output "body" is available to the caller via the call's output attribute.
+  -->
+  <params>
+    <var name="template" type="string"/>
+    <var name="parameters" type="map"/>
+  </params>
+  <steps>
+    <process handler="TemplateProcessor" operation="process" output="body">
+      <input name="syntax">"freemarker"</input>
+      <input name="template">$template</input>
+      <input name="parameters">$parameters</input>
+    </process>
+  </steps>
+</scriptlet>

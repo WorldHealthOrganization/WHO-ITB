@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scriptlet id="fetchFhir"
+            xmlns="http://www.gitb.com/tdl/v1/"
+            xmlns:gitb="http://www.gitb.com/core/v1/">
+  <!--
+    Reusable scriptlet: Fetch FHIR resources via manifest from the VHL responder.
+    Inputs:
+      uri      — the /shlink/fetch-fhir endpoint URI
+      manifest — the manifest JSON fragment from the authorize response
+      desc     — step description
+    The send result "response" is available via the call's output attribute.
+  -->
+  <params>
+    <var name="uri" type="string"/>
+    <var name="manifest" type="string"/>
+    <var name="desc" type="string"/>
+  </params>
+  <steps>
+    <!-- Build body via freemarker — manifest may be a JSON object or null -->
+    <assign to="tplParams{manifest}">$manifest</assign>
+    <assign to="tpl">'{"manifest": ${manifest?has_content?then(manifest, "null")}}'</assign>
+    <process handler="TemplateProcessor" operation="process" output="fetchBody">
+      <input name="syntax">"freemarker"</input>
+      <input name="template">$tpl</input>
+      <input name="parameters">$tplParams</input>
+    </process>
+
+    <!-- Send with FHIR accept header -->
+    <assign to="hdrs{Content-Type}">"application/json"</assign>
+    <assign to="hdrs{Accept}">"application/fhir+json"</assign>
+    <send id="response" desc="$desc" handler="HttpMessagingV2">
+      <input name="uri">$uri</input>
+      <input name="method">"POST"</input>
+      <input name="headers">$hdrs</input>
+      <input name="body">$fetchBody</input>
+    </send>
+  </steps>
+</scriptlet>

@@ -1,0 +1,54 @@
+# CANONICAL COPY — this plugin repo is the source of truth for the dialect.
+# The test-workbench copy under public/components/<id>/ is GENERATED via
+# `node itb-cli/src/sync-dialects.mjs`. Runtime fields (docker, healthCheck)
+# here are legacy; ../itb-plugin.yaml is authoritative for runtime.
+# Test Image Component: HCERT Decoder
+# Provides QR code decoding, COSE signature verification, VHL/SHL processing
+id: hcert-decoder
+name: HCERT Decoder
+version: "1.0"
+# Dialect spec range this app build satisfies (optional). The dialect spec
+# (language.version below) is authoritative: if it falls outside this range,
+# THIS APP is out of date — diagnostics point here, not at the dialect.
+implementsDialect: "^1.0"
+description: >
+  Decodes health certificate QR codes (EU DCC, SMART Health Cards, VHL/SHL).
+  Supports COSE signature verification, HCERT payload extraction, and
+  Verifiable Health Link (VHL) authorization and FHIR resource retrieval.
+
+# Docker configuration for deploying this test image
+docker:
+  image: isipfoundation/hcert-validator:latest
+  ports:
+    - "8089:8080"
+  environment:
+    - SPRING_PROFILES_ACTIVE=default
+  volumes: []
+
+# Health check endpoint — used by the workbench to verify the component is running
+healthCheck:
+  method: GET
+  path: /health
+  expect:
+    status: 200
+
+# Actors this component provides (test infrastructure roles)
+actors:
+  - id: HCertDecoder
+    description: Decodes QR images and verifies COSE signatures
+  - id: VHLResponder
+    description: Handles VHL/SHL authorization and FHIR retrieval
+
+# Language extension — loaded and merged into the step catalog
+language:
+  steps: steps.yml
+  version: "1.0.0"        # this extension's own language version
+  base: itb-core-en        # base language this extension is written against
+  baseVersion: ">=1 <2"    # compatible core specVersion range (semver)
+
+# Scriptlets — reusable TDL XML functions included in generated test suites
+# (kept for reference / future use by other features)
+scriptlets:
+  - buildJsonBody.xml
+  - multipartUpload.xml
+  - postJson.xml

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scriptlet id="verifyCoseSignature"
+            xmlns="http://www.gitb.com/tdl/v1/"
+            xmlns:gitb="http://www.gitb.com/core/v1/">
+  <!--
+    Reusable scriptlet: Verify a COSE signature using the HCERT decoder.
+
+    Rebuilds the cose_raw JSON object from three known scalar subfields
+    (protected_bstr, payload_bstr, signature — all base64 strings) via
+    Freemarker `?json_string` escaping. This avoids the ITB Map.toString
+    trap that occurs when embedding a JsonPointer-extracted object with
+    a bare `${var}`. See docs/serialize-primitive.md for the general
+    problem and the serializeJsonObject primitive that handles arbitrary
+    nested content.
+
+    Inputs:
+      uri                    — the /verify/signature endpoint URI
+      cose_raw_protected     — base64 string of protected_bstr
+      cose_raw_payload       — base64 string of payload_bstr
+      cose_raw_signature     — base64 string of signature
+      params                 — map with verification parameters
+                                (use_gdhcn, gdhcn_env, participant, usage,
+                                 verify_did_proof, allow_unverified_trustlist,
+                                 allow_remote_contexts, context_dir)
+      desc                   — step description
+    The send result "response" is available via the call's output attribute.
+  -->
+  <params>
+    <var name="uri" type="string"/>
+    <var name="cose_raw_protected" type="string"/>
+    <var name="cose_raw_payload" type="string"/>
+    <var name="cose_raw_signature" type="string"/>
+    <var name="params" type="map"/>
+    <var name="desc" type="string"/>
+  </params>
+  <steps>
+    <!-- Merge cose_raw subfields into parameters -->
+    <assign to="verifyParams">$params</assign>
+    <assign to="verifyParams{cose_raw_protected}">$cose_raw_protected</assign>
+    <assign to="verifyParams{cose_raw_payload}">$cose_raw_payload</assign>
+    <assign to="verifyParams{cose_raw_signature}">$cose_raw_signature</assign>
+
+    <!-- Freemarker template rebuilding cose_raw as a proper JSON object -->
+    <assign to="verifyTpl">'{"cose_raw":{"protected_bstr":"${cose_raw_protected?json_string}","payload_bstr":"${cose_raw_payload?json_string}","signature":"${cose_raw_signature?json_string}"},"use_gdhcn":${use_gdhcn?c},"gdhcn_env":"${gdhcn_env}","domain":"${domain!\"DCC\"}","participant":"${participant}","usage":"${usage}","verify_did_proof":${verify_did_proof?c},"allow_unverified_trustlist":${allow_unverified_trustlist?c},"allow_remote_contexts":${allow_remote_contexts?c},"context_dir":"${context_dir}"}'</assign>
+
+    <process handler="TemplateProcessor" operation="process" output="verifyBody">
+      <input name="syntax">"freemarker"</input>
+      <input name="template">$verifyTpl</input>
+      <input name="parameters">$verifyParams</input>
+    </process>
+
+    <!-- Send -->
+    <assign to="hdrs{Content-Type}">"application/json"</assign>
+    <send id="response" desc="$desc" handler="HttpMessagingV2">
+      <input name="uri">$uri</input>
+      <input name="method">"POST"</input>
+      <input name="headers">$hdrs</input>
+      <input name="body">$verifyBody</input>
+    </send>
+  </steps>
+</scriptlet>
