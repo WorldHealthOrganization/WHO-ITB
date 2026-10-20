@@ -17,7 +17,7 @@ It includes interactive API docs and is container-ready.
 - **SHLink**: Parse `hcert[5]` or pointer-style `payload[-260][5]`.
 - **Authorization**: POST a PIN / passcode to obtain a manifest.
 - **FHIR Fetch**: Download FHIR resources referenced by the manifest.
-- **Docs**: ReDoc at `/docs` (read-only). Optional Swagger-UI at `/swagger` (Try it out).
+- **Docs**: Swagger-UI at `/docs` (interactive, Try it out). ReDoc at `/redocs` (read-only).
 
 ---
 
@@ -34,10 +34,11 @@ docker run --rm -p 9090:8080 --name hcert hcert-validator:latest
 ```
 
 Open:
-- API docs (ReDoc): `http://localhost:9090/docs`
+- API docs (Swagger-UI, interactive): `http://localhost:9090/docs`
+- API docs (ReDoc, read-only): `http://localhost:9090/redocs`
 - OpenAPI JSON: `http://localhost:9090/openapi.json`
 
-> Want interactive “Try it out”? Enable the optional `/swagger` route (already in app if you kept it) and visit `http://localhost:9090/swagger`.
+> `/docs` is the interactive Swagger-UI. For a cleaner read-only view use `/redocs`. There is no `/swagger` route.
 
 ### Using Docker Compose
 
@@ -85,8 +86,8 @@ python app.py
 - `POST /extract/reference` – `{ hcert? , payload? }` → SHLink (URL/key/flags/exp)  
 - `POST /shlink/authorize` – `{ url, pin }` → manifest  
 - `POST /shlink/fetch-fhir` – `{ manifest }` → FHIR resources  
-- `GET  /docs` – ReDoc (pretty, read-only)  
-- `GET  /swagger` – Swagger-UI (interactive), if enabled  
+- `GET  /docs` – Swagger-UI (interactive, Try it out)  
+- `GET  /redocs` – ReDoc (pretty, read-only)  
 - `GET  /openapi.json` – OpenAPI 3.0 spec
 
 > Default container port: **8080** (map to any host port you like).
