@@ -1,0 +1,42 @@
+{
+  "cose": {
+    "kid_b64": "lkxZC7WEOIs",
+    "kid_hex": "964c590bb584388b",
+    "protected": {
+      "1": -7,
+      "4": {
+        "_b64": "lkxZC7WEOIs"
+      }
+    },
+    "signature": "iMTRnVEH19EsR36NHs-wNLLC75Eg04nnC_DrUTq-o8clES9dEowXeZreSDwsCRoR5Vck2SmJP0FQE1j2lTA5Nw",
+    "unprotected": {}
+  },
+  "diagnostics": {
+    "base45_decoded_len": 262,
+    "base45_invalid_chars": [],
+    "zlib_decompressed_len": 265
+  },
+  "hcert": null,
+  "hcert_inner_json": "{\"n\":\"Jorge Gonz\\ufffdlez\",\"dob\":\"1959-08-11\",\"v\":{\"vp\":\"YellowFeverProductd2c75a15ed309658b3968519ddb31690\",\"dt\":\"2025-09-26\",\"bo\":\"123123123\",\"vls\":\"2025-09-26\"},\"s\":\"male\",\"nid\":\"123456789\",\"ndt\":\"NI\"}",
+  "hcert_inner_neg6_json": "{\"n\":\"Jorge Gonz\\ufffdlez\",\"dob\":\"1959-08-11\",\"v\":{\"vp\":\"YellowFeverProductd2c75a15ed309658b3968519ddb31690\",\"dt\":\"2025-09-26\",\"bo\":\"123123123\",\"vls\":\"2025-09-26\"},\"s\":\"male\",\"nid\":\"123456789\",\"ndt\":\"NI\"}",
+  "payload": {
+    "-260": {
+      "-6": {
+        "dob": "1959-08-11",
+        "n": "Jorge Gonz\ufffdlez",
+        "ndt": "NI",
+        "nid": "123456789",
+        "s": "male",
+        "v": {
+          "bo": "123123123",
+          "dt": "2025-09-26",
+          "vls": "2025-09-26",
+          "vp": "YellowFeverProductd2c75a15ed309658b3968519ddb31690"
+        }
+      }
+    },
+    "1": "XCL",
+    "6": 1782481924
+  },
+  "payload_json": "{\"6\":1782481924,\"1\":\"XCL\",\"-260\":{\"-6\":{\"n\":\"Jorge Gonz\\ufffdlez\",\"dob\":\"1959-08-11\",\"v\":{\"vp\":\"YellowFeverProductd2c75a15ed309658b3968519ddb31690\",\"dt\":\"2025-09-26\",\"bo\":\"123123123\",\"vls\":\"2025-09-26\"},\"s\":\"male\",\"nid\":\"123456789\",\"ndt\":\"NI\"}}}"
+}

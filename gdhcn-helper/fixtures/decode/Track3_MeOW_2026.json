@@ -1,0 +1,48 @@
+{
+  "cose": {
+    "kid_b64": "lkxZC7WEOIs",
+    "kid_hex": "964c590bb584388b",
+    "protected": {
+      "1": -7
+    },
+    "signature": "osJKQ9p8i1Ehf6jO3kqTAqDKBOdvS1kgguj-HDsDpJ-hKiWzz7X4NXljBC79xy-tGjhMuK8ETNRDVmB0gJtjFA",
+    "unprotected": {
+      "4": {
+        "_b64": "lkxZC7WEOIs"
+      }
+    }
+  },
+  "diagnostics": {
+    "base45_decoded_len": 354,
+    "base45_invalid_chars": [],
+    "zlib_decompressed_len": 366
+  },
+  "hcert": null,
+  "hcert_inner_json": "{\"n\":\"Jorge Gonz\\u00e1lez\",\"dob\":\"1959-08-11\",\"s\":\"male\",\"m\":[{\"m\":\"318956006\",\"es\":\"2025-01-01\",\"ee\":\"2025-12-31\",\"da\":\"2025-06-17\",\"d\":\"1 comp. por d\\u00eda\",\"r\":\"Product containing precisely losartan potassium 50 milligram/1 each conventional release oral tablet (clinical drug)\"}],\"id\":\"123456789\",\"dt\":\"NI\"}",
+  "hcert_inner_neg7_json": "{\"n\":\"Jorge Gonz\\u00e1lez\",\"dob\":\"1959-08-11\",\"s\":\"male\",\"m\":[{\"m\":\"318956006\",\"es\":\"2025-01-01\",\"ee\":\"2025-12-31\",\"da\":\"2025-06-17\",\"d\":\"1 comp. por d\\u00eda\",\"r\":\"Product containing precisely losartan potassium 50 milligram/1 each conventional release oral tablet (clinical drug)\"}],\"id\":\"123456789\",\"dt\":\"NI\"}",
+  "payload": {
+    "-260": {
+      "-7": {
+        "dob": "1959-08-11",
+        "dt": "NI",
+        "id": "123456789",
+        "m": [
+          {
+            "d": "1 comp. por d\u00eda",
+            "da": "2025-06-17",
+            "ee": "2025-12-31",
+            "es": "2025-01-01",
+            "m": "318956006",
+            "r": "Product containing precisely losartan potassium 50 milligram/1 each conventional release oral tablet (clinical drug)"
+          }
+        ],
+        "n": "Jorge Gonz\u00e1lez",
+        "s": "male"
+      }
+    },
+    "1": "XCL",
+    "4": 1813586030,
+    "6": 1782482030
+  },
+  "payload_json": "{\"1\":\"XCL\",\"6\":1782482030,\"4\":1813586030,\"-260\":{\"-7\":{\"n\":\"Jorge Gonz\\u00e1lez\",\"dob\":\"1959-08-11\",\"s\":\"male\",\"m\":[{\"m\":\"318956006\",\"es\":\"2025-01-01\",\"ee\":\"2025-12-31\",\"da\":\"2025-06-17\",\"d\":\"1 comp. por d\\u00eda\",\"r\":\"Product containing precisely losartan potassium 50 milligram/1 each conventional release oral tablet (clinical drug)\"}],\"id\":\"123456789\",\"dt\":\"NI\"}}}"
+}
