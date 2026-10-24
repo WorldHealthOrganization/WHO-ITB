@@ -1,0 +1,27 @@
+# Compile and unit-test the port in a container.
+#
+# Why a container: this repo's Windows host has Smart App Control in
+# enforcement mode, which blocks unsigned downloaded executables -- rustc and
+# cargo included -- and that setting cannot be reverted without reinstalling
+# Windows. Building here sidesteps it and matches how the service ships.
+#
+# Context is gdhcn-helper/ so the shared fixtures/ come along:
+#   docker build -f ports/rust/Dockerfile.test -t gdhcn-rust-test .
+#
+# The build fails if any test fails, so a successful build is a green suite.
+FROM rust:1-slim-bookworm AS test
+WORKDIR /src
+# The slim image ships neither component.
+RUN rustup component add clippy rustfmt
+COPY ports/rust/Cargo.toml ./
+COPY ports/rust/src ./src
+COPY ports/rust/tests ./tests
+COPY fixtures /fixtures
+ENV GDHCN_FIXTURES=/fixtures
+RUN cargo fmt --check || echo "note: formatting drift (non-fatal)"
+RUN cargo clippy --all-targets -- -D warnings
+RUN cargo test --all-targets --verbose
+RUN cargo build --release
+
+FROM scratch AS artifact
+COPY --from=test /src/target/release/ /

@@ -1,0 +1,20 @@
+[package]
+name = "gdhcn-helper"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+license = "MIT"
+description = "GDHCN HCERT & SMART Health Link validator - Rust port of gdhcn-helper"
+
+# Dependencies are added as modules land, so the build stays fast and a
+# failure is always about code that exists. The full intended set -- ciborium,
+# coset, flate2 (rust_backend), p256, axum, rqrr -- is recorded in the
+# capability table in ../../docs/PORT-PLAN.md. All chosen to be pure Rust: no
+# C build scripts, so the image needs only a linker.
+[dependencies]
+thiserror = "2.0"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
