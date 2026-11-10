@@ -12,19 +12,20 @@ version: "1.0"
 # THIS APP is out of date — diagnostics point here, not at the dialect.
 implementsDialect: "^1.0"
 description: >
-  FHIR server with $validate support. Validates resources against
-  StructureDefinitions and Implementation Guides.
+  HL7 FHIR validator in server mode, exposing the GITB REST services under
+  /itb: validation against profiles and IGs, transformation, FHIRPath,
+  test data generation.
 
 docker:
-  image: hapiproject/hapi:latest
+  image: ghcr.io/worldhealthorganization/fhir-validator:ci-build
   ports:
-    - "8088:8081"
+    - "8088:8080"
   environment:
-    - hapi.fhir.validation.enabled=true
+    - FHIR_VERSION=4.0
 
 healthCheck:
   method: GET
-  path: /itb/fhir/definition
+  path: /itb/fhir/getModuleDefinition
   expect:
     status: 200
 
